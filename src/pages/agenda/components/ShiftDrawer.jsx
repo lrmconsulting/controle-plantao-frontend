@@ -85,8 +85,10 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
         end_datetime:   data.end_time ? toISO(data.start_date, data.end_time) : null,
         unit:           data.unit || null,
         cal_title:      data.cal_title || '',
-        cal_source:     'manual',
         notes:          data.notes || '',
+        // cal_source só é definido em criações manuais — NUNCA enviar em edições
+        // para não sobrescrever a origem de eventos vindos do Google/Apple
+        ...(!isEdit && { cal_source: 'manual' }),
       }
       return isEdit ? shiftsApi.update(shift.id, payload) : shiftsApi.create(payload)
     },
