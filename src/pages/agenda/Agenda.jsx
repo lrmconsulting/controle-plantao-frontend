@@ -12,7 +12,8 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import ViewModuleIcon   from '@mui/icons-material/ViewModule'
 import SyncIcon         from '@mui/icons-material/Sync'
 import { useQuery }     from '@tanstack/react-query'
-import { shiftsApi }    from '@/api/shifts'
+import { shiftsApi }       from '@/api/shifts'
+import { integrationsApi } from '@/api/settings'
 
 import MonthCalendar    from './components/MonthCalendar'
 import YearCalendar     from './components/YearCalendar'
@@ -174,6 +175,15 @@ export default function Agenda() {
     enabled: view === 'year',
   })
 
+  // Eventos do Google Calendar para o mês atual
+  const { data: googleEvents = [] } = useQuery({
+    queryKey: ['google-events', monthStr],
+    queryFn:  () => integrationsApi.googleEvents(monthStr).then(r => r.data),
+    enabled:  view === 'month',
+    staleTime: 1000 * 60 * 10,   // revalida a cada 10 min
+    retry: false,                  // não tentar se não houver integração ativa
+  })
+
   const shifts  = view === 'month' ? (monthShiftsData || []) : (yearShiftsData || [])
   const loading = view === 'month' ? monthLoading : yearLoading
 
@@ -300,25 +310,21 @@ export default function Agenda() {
     </Box>
   )
 
-  /* ── Placeholder sync ── */
-  const syncBanner = (
+  /* ── Banner do Google Calendar (só quando há eventos) ── */
+  const syncBanner = googleEvents.length > 0 ? (
     <Box sx={{
       mx: { xs: 2, md: 3 }, mb: 2, p: 1.5,
       display: 'flex', alignItems: 'center', gap: 1.5,
-      borderRadius: '6px', border: '1px dashed', borderColor: 'divider',
-      bgcolor: 'background.paper',
+      borderRadius: '6px', border: '1px solid',
+      borderColor: 'rgba(59,130,246,0.3)',
+      bgcolor: 'rgba(59,130,246,0.04)',
     }}>
-      <SyncIcon fontSize="small" sx={{ color: 'text.disabled' }} />
-      <Box>
-        <Typography variant="caption" color="text.secondary" fontWeight={600}>
-          Sincronização com Google Calendar e Apple Calendar
-        </Typography>
-        <Typography variant="caption" color="text.disabled" display="block">
-          Em breve — configure em Ajustes
-        </Typography>
-      </Box>
+      <SyncIcon fontSize="small" sx={{ color: '#3b82f6' }} />
+      <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 600 }}>
+        {googleEvents.length} evento{googleEvents.length !== 1 ? 's' : ''} do Google Calendar sincronizado{googleEvents.length !== 1 ? 's' : ''}
+      </Typography>
     </Box>
-  )
+  ) : null
 
   /* ═══════════════════════════ VISÃO ANUAL ═══════════════════════════ */
   if (view === 'year') {
@@ -353,6 +359,7 @@ export default function Agenda() {
             <MonthCalendar
               year={year} month={month}
               shifts={monthShiftsData || []}
+              googleEvents={googleEvents}
               selectedDate={selectedDate}
               onSelectDate={handleDaySelect}
               onShiftClick={handleShiftClick}

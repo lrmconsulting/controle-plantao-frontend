@@ -427,7 +427,15 @@ function TabIntegracoes() {
       if (!popup) {
         setGoogleError('Popup bloqueado pelo navegador. Permita popups para este site.')
         setGoogleLoading(false)
+        return
       }
+      // Fallback: se o popup fechar sem enviar postMessage, reseta o loading
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer)
+          setGoogleLoading(false)
+        }
+      }, 500)
     } catch (err) {
       setGoogleError(err.response?.data?.detail || 'Erro ao iniciar conexão.')
       setGoogleLoading(false)

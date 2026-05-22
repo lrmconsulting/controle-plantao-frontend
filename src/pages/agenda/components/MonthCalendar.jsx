@@ -67,6 +67,30 @@ function groupShiftsByDate(shifts) {
   return map
 }
 
+/** Extrai YYYY-MM-DD de um evento Google (pode ser dateTime ISO ou date string) */
+function googleEventDateKey(event) {
+  const raw = event.start || ''
+  // all-day: "2026-05-22"  |  timed: "2026-05-22T10:00:00Z"
+  return raw.startsWith('{') ? null : raw.slice(0, 10)
+}
+
+function groupGoogleEventsByDate(events) {
+  const map = {}
+  events.forEach((e) => {
+    const k = googleEventDateKey(e)
+    if (!k) return
+    if (!map[k]) map[k] = []
+    map[k].push(e)
+  })
+  return map
+}
+
+function formatGoogleTime(isoStr) {
+  if (!isoStr || isoStr.length === 10) return null   // all-day
+  const dt = new Date(isoStr)
+  return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+}
+
 function formatTime(isoStr) {
   if (!isoStr) return null
   const dt = new Date(isoStr)
@@ -74,14 +98,15 @@ function formatTime(isoStr) {
 }
 
 export default function MonthCalendar({
-  year, month, shifts = [], selectedDate, onSelectDate, onShiftClick,
+  year, month, shifts = [], googleEvents = [], selectedDate, onSelectDate, onShiftClick,
 }) {
   const theme    = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const isTablet = useMediaQuery(theme.breakpoints.down('md'))
 
-  const weeks        = useMemo(() => buildCalendarWeeks(year, month), [year, month])
-  const shiftsByDate = useMemo(() => groupShiftsByDate(shifts), [shifts])
+  const weeks             = useMemo(() => buildCalendarWeeks(year, month), [year, month])
+  const shiftsByDate      = useMemo(() => groupShiftsByDate(shifts), [shifts])
+  const googleEventsByDate = useMemo(() => groupGoogleEventsByDate(googleEvents), [googleEvents])
 
   const todayKey    = dateKey(new Date())
   const selectedKey = selectedDate ? dateKey(selectedDate) : null
@@ -144,8 +169,10 @@ export default function MonthCalendar({
           }}
         >
           {week.map(({ date, isCurrentMonth }, di) => {
-            const key       = dateKey(date)
-            const dayShifts = (shiftsByDate[key] || [])
+            const key          = dateKey(date)
+            const dayShifts    = (shiftsByDate[key] || [])
+            const dayGoogleEvs = (googleEventsByDate[key] || [])
+            const totalItems   = dayShifts.length + dayGoogleEvs.length
             const isToday   = key === todayKey
             const isSel     = key === selectedKey
             const isWeekend = di >= 5 // Sáb (5) e Dom (6)
@@ -271,8 +298,50 @@ export default function MonthCalendar({
                   )
                 })}
 
-                {/* Overflow */}
-                {dayShifts.length > MAX_CHIPS && (
+                {/* Eventos Google Calendar (após os plantões) */}
+                {dayShifts.length < MAX_CHIPS && dayGoogleEvs.slice(0, MAX_CHIPS - dayShifts.length).map((ev) => {
+                  const startTime = formatGoogleTime(ev.start)
+                  return (
+                    <Box
+                      key={ev.id}
+                      onClick={(e) => { e.stopPropagation(); ev.html_link && window.open(ev.html_link, '_blank') }}
+                      title={ev.title}
+                      sx={{
+                        bgcolor: 'rgba(59,130,246,0.08)',
+                        borderLeft: '3px solid #3b82f6',
+                        borderRadius: '0 3px 3px 0',
+                        px: '6px',
+                        py: '3px',
+                        cursor: ev.html_link ? 'pointer' : 'default',
+                        overflow: 'hidden',
+                        minWidth: 0,
+                        width: '100%',
+                        transition: 'all 0.1s',
+                        '&:hover': ev.html_link ? { bgcolor: 'rgba(59,130,246,0.16)' } : {},
+                      }}
+                    >
+                      <Typography
+                        noWrap
+                        sx={{
+                          fontSize: isMobile ? '0.6rem' : '0.7rem',
+                          fontWeight: 600,
+                          color: '#3b82f6',
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {ev.title}
+                      </Typography>
+                      {!isMobile && startTime && (
+                        <Typography noWrap sx={{ fontSize: '0.62rem', color: 'rgba(59,130,246,0.7)', lineHeight: 1.2 }}>
+                          {startTime}
+                        </Typography>
+                      )}
+                    </Box>
+                  )
+                })}
+
+                {/* Overflow (plantões + eventos Google juntos) */}
+                {totalItems > MAX_CHIPS && (
                   <Typography
                     sx={{
                       fontSize: '0.6rem',
@@ -282,7 +351,7 @@ export default function MonthCalendar({
                       lineHeight: 1.4,
                     }}
                   >
-                    +{dayShifts.length - MAX_CHIPS} mais
+                    +{totalItems - MAX_CHIPS} mais
                   </Typography>
                 )}
 

@@ -37,4 +37,7 @@ export const integrationsApi = {
 
   /** Sincronização manual */
   sync: () => api.post('/integrations/sync/'),
+
+  /** Eventos do Google Calendar para um mês: month = 'YYYY-MM' */
+  googleEvents: (month) => api.get('/integrations/google/events/', { params: { month } }),
 }
