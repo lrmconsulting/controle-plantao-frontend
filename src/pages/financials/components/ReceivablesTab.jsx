@@ -1,0 +1,594 @@
+import { useState, Fragment } from 'react'
+import {
+  Box, Typography, Button, Chip, Skeleton, Collapse,
+  IconButton, CircularProgress, Divider,
+} from '@mui/material'
+import ExpandMoreIcon          from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon          from '@mui/icons-material/ExpandLess'
+import PictureAsPdfIcon        from '@mui/icons-material/PictureAsPdf'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import PendingActionsIcon      from '@mui/icons-material/PendingActions'
+import ChevronLeftIcon         from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon        from '@mui/icons-material/ChevronRight'
+import ReceiptLongIcon         from '@mui/icons-material/ReceiptLong'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { invoicesApi, paymentsApi } from '@/api/financials'
+import InvoiceDrawer from './InvoiceDrawer'
+
+/* ─── helpers ─── */
+const MONTHS_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
+
+const STATUS_CONFIG = {
+  draft:     { label: 'Rascunho',   color: 'default' },
+  issued:    { label: 'NF emitida', color: 'info' },
+  paid:      { label: 'Pago',       color: 'success' },
+  overdue:   { label: 'Em atraso',  color: 'error' },
+  cancelled: { label: 'Cancelado',  color: 'default' },
+}
+
+const STATUS_ACCENT = {
+  draft:     '#94a3b8',
+  issued:    '#2563eb',
+  paid:      '#16a34a',
+  overdue:   '#dc2626',
+  cancelled: '#94a3b8',
+}
+
+function currency(value) {
+  if (value == null) return '—'
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '—'
+  const [y, m, d] = dateStr.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function fmtDatetime(isoStr) {
+  if (!isoStr) return '—'
+  const dt = new Date(isoStr)
+  const d   = String(dt.getDate()).padStart(2, '0')
+  const mo  = String(dt.getMonth() + 1).padStart(2, '0')
+  const h   = String(dt.getHours()).padStart(2, '0')
+  const min = String(dt.getMinutes()).padStart(2, '0')
+  return `${d}/${mo} ${h}:${min}`
+}
+
+function formatMonthKey(monthKey) {
+  const [year, m] = monthKey.split('-')
+  return `${MONTHS_PT[parseInt(m) - 1]} de ${year}`
+}
+
+/* ─── Pipeline de status ─── */
+const PIPELINE = [
+  { key: 'draft',  label: 'Gerada' },
+  { key: 'issued', label: 'NF emitida' },
+  { key: 'paid',   label: 'Pago' },
+]
+
+function getPipelineStep(status) {
+  if (status === 'paid')   return 2
+  if (status === 'issued') return 1
+  return 0
+}
+
+function StatusPipeline({ status }) {
+  if (status === 'cancelled') return null
+  const currentStep = getPipelineStep(status)
+  const isOverdue   = status === 'overdue'
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+      {PIPELINE.map((step, idx) => (
+        <Fragment key={step.key}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', minWidth: 54 }}>
+            <Box sx={{
+              width: 12, height: 12, borderRadius: '50%', mt: '2px',
+              bgcolor: idx < currentStep ? 'success.main'
+                : idx === currentStep
+                  ? isOverdue ? 'error.main' : 'primary.main'
+                  : 'transparent',
+              border: '2px solid',
+              borderColor: idx < currentStep ? 'success.main'
+                : idx === currentStep
+                  ? isOverdue ? 'error.main' : 'primary.main'
+                  : '#cbd5e1',
+            }} />
+            <Typography sx={{
+              fontSize: '0.56rem',
+              fontWeight: idx === currentStep ? 700 : 400,
+              color: idx < currentStep ? 'success.main'
+                : idx === currentStep
+                  ? isOverdue ? 'error.main' : 'primary.main'
+                  : 'text.disabled',
+              whiteSpace: 'nowrap',
+              textAlign: 'center',
+              lineHeight: 1.2,
+            }}>
+              {step.label}
+            </Typography>
+          </Box>
+          {idx < PIPELINE.length - 1 && (
+            <Box sx={{
+              flex: 1, height: 2, mt: '7px', mx: '3px',
+              bgcolor: idx < currentStep ? 'success.main' : '#e2e8f0',
+              minWidth: 12,
+            }} />
+          )}
+        </Fragment>
+      ))}
+    </Box>
+  )
+}
+
+/* ─── Card de fatura individual ─── */
+function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
+  const [expanded, setExpanded] = useState(false)
+  const status  = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
+  const accent  = STATUS_ACCENT[invoice.status] || '#94a3b8'
+  const canSetNF   = invoice.status !== 'cancelled'
+  const canConfirm = invoice.status === 'issued' || invoice.status === 'overdue'
+  const shifts     = invoice.invoice_shifts || []
+  const isConfirming = confirmingId === invoice.id
+
+  return (
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
+      {/* Corpo */}
+      <Box sx={{ borderLeft: `4px solid ${accent}`, px: 2, py: 1.5 }}>
+        {/* Linha 1: nome + chip + pipeline */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            <Typography variant="body2" fontWeight={700} noWrap>
+              {invoice.institution_detail?.name || '—'}
+            </Typography>
+            <Chip
+              label={status.label} color={status.color} size="small"
+              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, borderRadius: '4px' }}
+            />
+          </Box>
+          <StatusPipeline status={invoice.status} />
+        </Box>
+
+        {/* Linha 2: métricas */}
+        <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary" display="block">Valor</Typography>
+            <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {currency(invoice.total_value)}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary" display="block">Plantões</Typography>
+            <Typography variant="body2" fontWeight={600}>{invoice.shift_count}</Typography>
+          </Box>
+          {invoice.nf_number && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">NF nº</Typography>
+              <Typography variant="body2" fontWeight={600}>{invoice.nf_number}</Typography>
+            </Box>
+          )}
+          {invoice.issue_date && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">Emissão</Typography>
+              <Typography variant="body2" fontWeight={600}>{fmtDate(invoice.issue_date)}</Typography>
+            </Box>
+          )}
+          {invoice.expected_payment_date && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">Vencimento</Typography>
+              <Typography variant="body2" fontWeight={600}
+                sx={{ color: invoice.status === 'overdue' ? 'error.main' : 'text.primary' }}>
+                {fmtDate(invoice.expected_payment_date)}
+              </Typography>
+            </Box>
+          )}
+          {invoice.payment?.received_date && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">Recebido em</Typography>
+              <Typography variant="body2" fontWeight={600} color="success.main">
+                {fmtDate(invoice.payment.received_date)}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Barra de ações */}
+      <Box sx={{
+        px: 2, py: '8px', bgcolor: '#f8fafc',
+        borderTop: '1px solid', borderColor: 'divider',
+        display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
+      }}>
+        {shifts.length > 0 && (
+          <Button
+            size="small" variant="text" color="inherit"
+            startIcon={expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            onClick={() => setExpanded(e => !e)}
+            sx={{ fontSize: '0.7rem', py: 0.25, color: 'text.secondary', '&:hover': { bgcolor: 'transparent', color: 'text.primary' } }}
+          >
+            {shifts.length} plant{shifts.length !== 1 ? 'ões' : 'ão'}
+          </Button>
+        )}
+        <Box sx={{ flex: 1 }} />
+        {canSetNF && (
+          <Button
+            size="small" variant="outlined"
+            onClick={() => onSetNF(invoice)}
+            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}
+          >
+            Registrar NF
+          </Button>
+        )}
+        {canConfirm && (
+          <Button
+            size="small" variant="contained" color="success"
+            onClick={() => onConfirmPayment(invoice)}
+            disabled={isConfirming}
+            startIcon={isConfirming ? null : <CheckCircleOutlinedIcon sx={{ fontSize: '0.9rem !important' }} />}
+            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}
+          >
+            {isConfirming ? <CircularProgress size={14} color="inherit" /> : 'Confirmar recebimento'}
+          </Button>
+        )}
+      </Box>
+
+      {/* Plantões expandíveis */}
+      <Collapse in={expanded}>
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+          {/* Cabeçalho da tabela */}
+          <Box sx={{
+            display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
+            alignItems: 'center', gap: 1.5,
+            px: 2, py: '6px', bgcolor: '#fafafa',
+            borderBottom: '1px solid', borderColor: 'divider',
+          }}>
+            {['', 'Data / Horário', 'Unidade', 'Valor'].map((h, i) => (
+              <Typography key={i} variant="caption" color="text.disabled"
+                sx={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: i === 3 ? 'right' : 'left' }}>
+                {h}
+              </Typography>
+            ))}
+          </Box>
+          {shifts.map((is, idx) => {
+            const endTime = is.shift_end_date
+              ? new Date(is.shift_end_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              : null
+            const startFmt = fmtDatetime(is.shift_date)
+
+            return (
+              <Box key={idx} sx={{
+                display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
+                alignItems: 'center', gap: 1.5,
+                px: 2, py: '8px',
+                borderBottom: idx < shifts.length - 1 ? '1px solid' : 'none',
+                borderColor: 'divider',
+                '&:hover': { bgcolor: '#f8fafc' },
+              }}>
+                {/* Dot de cor */}
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: is.unit_color || '#94a3b8', flexShrink: 0 }} />
+                {/* Data/hora */}
+                <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
+                  {startFmt}{endTime ? ` – ${endTime}` : ''}
+                </Typography>
+                {/* Unidade */}
+                <Typography variant="caption" noWrap sx={{ color: 'text.primary' }}>
+                  {is.unit_name}
+                </Typography>
+                {/* Valor */}
+                <Typography variant="caption" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', flexShrink: 0 }}>
+                  {currency(is.value)}
+                </Typography>
+              </Box>
+            )
+          })}
+        </Box>
+      </Collapse>
+    </Box>
+  )
+}
+
+/* ─── Grupo de mês ─── */
+function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
+  const billed   = parseFloat(group.total_billed   || 0)
+  const received = parseFloat(group.total_received || 0)
+  const pending  = parseFloat(group.total_pending  || 0)
+
+  return (
+    <Box sx={{ mb: 3.5 }}>
+      {/* Cabeçalho do mês */}
+      <Box sx={{
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+        pb: 1, mb: 1.5, borderBottom: '2px solid', borderColor: 'divider',
+        flexWrap: 'wrap', gap: 1,
+      }}>
+        <Typography variant="subtitle1" fontWeight={700} sx={{ textTransform: 'capitalize' }}>
+          {formatMonthKey(group.month)}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+              Faturado
+            </Typography>
+            <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {currency(billed)}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+              Recebido
+            </Typography>
+            <Typography variant="body2" fontWeight={700} color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {currency(received)}
+            </Typography>
+          </Box>
+          {pending > 0 && (
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+                Pendente
+              </Typography>
+              <Typography variant="body2" fontWeight={700} color="warning.dark" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                {currency(pending)}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Faturas */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {(group.invoices || []).map(inv => (
+          <InvoiceCard
+            key={inv.id} invoice={inv}
+            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment}
+            confirmingId={confirmingId}
+          />
+        ))}
+      </Box>
+    </Box>
+  )
+}
+
+/* ─── Exportação PDF (print window) ─── */
+function generatePrintHTML(timeline) {
+  const now     = new Date()
+  const dateStr = now.toLocaleDateString('pt-BR')
+  const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const fmt     = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+
+  const totalBilled   = (timeline || []).reduce((s, g) => s + parseFloat(g.total_billed   || 0), 0)
+  const totalReceived = (timeline || []).reduce((s, g) => s + parseFloat(g.total_received || 0), 0)
+  const totalPending  = (timeline || []).reduce((s, g) => s + parseFloat(g.total_pending  || 0), 0)
+
+  const rows = (timeline || []).flatMap(group =>
+    (group.invoices || []).map(inv => {
+      const statusColors = { paid: '#16a34a', overdue: '#dc2626', issued: '#2563eb', draft: '#64748b', cancelled: '#64748b' }
+      const statusLabels = { paid: 'Pago', overdue: 'Em atraso', issued: 'NF emitida', draft: 'Rascunho', cancelled: 'Cancelado' }
+      const color  = statusColors[inv.status] || '#64748b'
+      const label  = statusLabels[inv.status] || inv.status
+      const val    = fmt(parseFloat(inv.total_value || 0))
+      return `
+        <tr>
+          <td style="text-transform:capitalize">${formatMonthKey(group.month)}</td>
+          <td><strong>${inv.institution_detail?.name || '—'}</strong></td>
+          <td style="color:${color};font-weight:600">${label}</td>
+          <td>${inv.nf_number || '—'}</td>
+          <td style="text-align:center">${inv.shift_count}</td>
+          <td style="text-align:right;font-weight:700">${val}</td>
+          <td>${inv.expected_payment_date ? fmtDate(inv.expected_payment_date) : '—'}</td>
+          <td>${inv.payment?.received_date ? fmtDate(inv.payment.received_date) : '—'}</td>
+        </tr>`
+    })
+  ).join('')
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Recebíveis — Vitalis</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#1e293b;padding:28px}
+  h1{font-size:20px;color:#0d9488;margin-bottom:3px}
+  .sub{color:#64748b;font-size:11px;margin-bottom:18px}
+  .totals{display:flex;gap:28px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:20px}
+  .tot label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:2px}
+  .tot .v{font-size:14px;font-weight:700}
+  .tb{color:#0d9488}.tr{color:#16a34a}.tp{color:#d97706}
+  table{width:100%;border-collapse:collapse}
+  thead tr{background:#f1f5f9}
+  th{padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;border-bottom:2px solid #e2e8f0}
+  td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  @media print{body{padding:0}@page{margin:1.5cm}}
+</style>
+</head>
+<body>
+  <h1>Relatório de Recebíveis</h1>
+  <div class="sub">Vitalis &middot; Gerado em ${dateStr} às ${timeStr}</div>
+  <div class="totals">
+    <div class="tot"><label>Total faturado</label><span class="v tb">${fmt(totalBilled)}</span></div>
+    <div class="tot"><label>Total recebido</label><span class="v tr">${fmt(totalReceived)}</span></div>
+    <div class="tot"><label>Total pendente</label><span class="v tp">${fmt(totalPending)}</span></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Mês</th><th>Instituição</th><th>Status</th><th>NF nº</th>
+        <th style="text-align:center">Plantões</th>
+        <th style="text-align:right">Valor</th>
+        <th>Vencimento</th><th>Recebido em</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`
+}
+
+/* ════════════════════════ COMPONENTE PRINCIPAL ════════════════════════ */
+export default function ReceivablesTab() {
+  const queryClient = useQueryClient()
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [drawerOpen,    setDrawerOpen]   = useState(false)
+  const [drawerInvoice, setDrawerInvoice] = useState(null)
+  const [confirmingId,  setConfirmingId]  = useState(null)
+
+  const { data: timeline, isLoading } = useQuery({
+    queryKey: ['invoices-timeline', selectedYear],
+    queryFn:  () => invoicesApi.timeline(selectedYear),
+    select:   (res) => res.data,
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: ({ paymentId }) => paymentsApi.confirm(paymentId),
+    onSuccess: () => {
+      setConfirmingId(null)
+      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['forecast'] })
+    },
+    onError: () => setConfirmingId(null),
+  })
+
+  function openSetNF(inv) {
+    setDrawerInvoice(inv)
+    setDrawerOpen(true)
+  }
+
+  function handleConfirmPayment(inv) {
+    if (inv.payment?.id) {
+      setConfirmingId(inv.id)
+      confirmMutation.mutate({ paymentId: inv.payment.id })
+    }
+  }
+
+  function handleExport() {
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(generatePrintHTML(timeline))
+    win.document.close()
+    setTimeout(() => win.print(), 400)
+  }
+
+  const totalBilled   = (timeline || []).reduce((s, g) => s + parseFloat(g.total_billed   || 0), 0)
+  const totalReceived = (timeline || []).reduce((s, g) => s + parseFloat(g.total_received || 0), 0)
+  const totalPending  = (timeline || []).reduce((s, g) => s + parseFloat(g.total_pending  || 0), 0)
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2.5, gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="subtitle1" fontWeight={700}>Histórico de recebíveis</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Acompanhe o status de cada fatura e confirme recebimentos
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Seletor de ano */}
+          <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: '6px' }}>
+            <IconButton size="small" onClick={() => setSelectedYear(y => y - 1)}>
+              <ChevronLeftIcon fontSize="small" />
+            </IconButton>
+            <Typography variant="body2" fontWeight={700} sx={{ px: 1.5, minWidth: 46, textAlign: 'center' }}>
+              {selectedYear}
+            </Typography>
+            <IconButton size="small" onClick={() => setSelectedYear(y => y + 1)}
+              disabled={selectedYear >= new Date().getFullYear() + 1}>
+              <ChevronRightIcon fontSize="small" />
+            </IconButton>
+          </Box>
+          <Button
+            variant="outlined" size="small"
+            startIcon={<PictureAsPdfIcon fontSize="small" />}
+            onClick={handleExport}
+            disabled={!timeline?.length}
+            sx={{ borderRadius: '6px', fontSize: '0.72rem' }}
+          >
+            Exportar PDF
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Cards de resumo anual */}
+      {!isLoading && timeline?.length > 0 && (
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' },
+          gap: 1.5, mb: 3,
+        }}>
+          {[
+            { label: 'Total faturado', value: currency(totalBilled),   color: 'primary.main', accent: '#0d9488' },
+            { label: 'Total recebido', value: currency(totalReceived), color: 'success.main', accent: '#10b981' },
+            {
+              label: 'Total pendente',
+              value: currency(totalPending),
+              color: totalPending > 0 ? 'warning.dark' : 'text.secondary',
+              accent: totalPending > 0 ? '#f59e0b' : undefined,
+            },
+          ].map(card => (
+            <Box key={card.label} sx={{
+              p: '12px 16px',
+              border: '1px solid', borderColor: 'divider', borderRadius: '8px',
+              borderTop: card.accent ? `3px solid ${card.accent}` : undefined,
+              bgcolor: 'background.paper',
+            }}>
+              <Typography sx={{
+                fontSize: '0.6rem', fontWeight: 700, color: 'text.disabled',
+                textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5,
+              }}>
+                {card.label}
+              </Typography>
+              <Typography fontWeight={700} sx={{ color: card.color, fontVariantNumeric: 'tabular-nums' }}>
+                {card.value}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {[1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={130} />)}
+        </Box>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && (!timeline || timeline.length === 0) && (
+        <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: '8px' }}>
+          <ReceiptLongIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+          <Typography variant="body1" fontWeight={600} color="text.secondary" gutterBottom>
+            Nenhuma fatura em {selectedYear}
+          </Typography>
+          <Typography variant="caption" color="text.disabled">
+            Acesse a aba Mensal para gerar faturas a partir dos plantões realizados
+          </Typography>
+        </Box>
+      )}
+
+      {/* Timeline */}
+      {!isLoading && (timeline || []).map(group => (
+        <MonthGroup
+          key={group.month}
+          group={group}
+          onSetNF={openSetNF}
+          onConfirmPayment={handleConfirmPayment}
+          confirmingId={confirmingId}
+        />
+      ))}
+
+      {/* Drawer para Registrar NF */}
+      <InvoiceDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        mode="setNF"
+        invoice={drawerInvoice}
+      />
+    </Box>
+  )
+}
