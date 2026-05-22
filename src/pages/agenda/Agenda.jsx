@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Box, Typography, IconButton, Button, Chip, Fab,
   Skeleton, useTheme, useMediaQuery, Divider, Tooltip,
@@ -11,7 +11,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import ViewModuleIcon   from '@mui/icons-material/ViewModule'
 import SyncIcon         from '@mui/icons-material/Sync'
-import { useQuery }     from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { shiftsApi }       from '@/api/shifts'
 import { integrationsApi } from '@/api/settings'
 
@@ -140,8 +140,9 @@ function ShiftList({ shifts, selectedDate, onShiftClick, loading }) {
 
 /* ─── Página principal ─── */
 export default function Agenda() {
-  const theme    = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const theme       = useTheme()
+  const isMobile    = useMediaQuery(theme.breakpoints.down('md'))
+  const queryClient = useQueryClient()
 
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -175,14 +176,33 @@ export default function Agenda() {
     enabled: view === 'year',
   })
 
-  // Eventos do Google Calendar para o mês atual
-  const { data: googleEvents = [] } = useQuery({
-    queryKey: ['google-events', monthStr],
-    queryFn:  () => integrationsApi.googleEvents(monthStr).then(r => r.data),
-    enabled:  view === 'month',
-    staleTime: 1000 * 60 * 10,   // revalida a cada 10 min
-    retry: false,                  // não tentar se não houver integração ativa
+  // ── Auto-sync com calendários externos ──
+  const lastSyncedMonth = useRef(null)
+  const [syncResult, setSyncResult] = useState(null)
+
+  const syncMutation = useMutation({
+    mutationFn: (m) => integrationsApi.sync(m),
+    onSuccess: (res) => {
+      const data = res.data
+      setSyncResult(data)
+      // Recarrega shifts se houve mudanças
+      if ((data.created || 0) + (data.updated || 0) + (data.deleted || 0) > 0) {
+        queryClient.invalidateQueries({ queryKey: ['shifts', monthStr] })
+        queryClient.invalidateQueries({ queryKey: ['monthly-summary', monthStr] })
+      }
+    },
+    onError: () => {
+      // Silencia erros (sem integrações ativas é normal retornar synced: 0)
+      setSyncResult(null)
+    },
   })
+
+  useEffect(() => {
+    if (view !== 'month') return
+    if (lastSyncedMonth.current === monthStr) return
+    lastSyncedMonth.current = monthStr
+    syncMutation.mutate(monthStr)
+  }, [monthStr, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const shifts  = view === 'month' ? (monthShiftsData || []) : (yearShiftsData || [])
   const loading = view === 'month' ? monthLoading : yearLoading
@@ -310,19 +330,45 @@ export default function Agenda() {
     </Box>
   )
 
-  /* ── Banner do Google Calendar (só quando há eventos) ── */
-  const syncBanner = googleEvents.length > 0 ? (
+  /* ── Banner de sincronização ── */
+  const totalChanges = syncResult
+    ? (syncResult.created || 0) + (syncResult.updated || 0)
+    : 0
+  const pendingCount = (view === 'month' ? (monthShiftsData || []) : [])
+    .filter(s => s.status === 'pending').length
+
+  const syncBanner = (syncMutation.isPending || syncResult) ? (
     <Box sx={{
       mx: { xs: 2, md: 3 }, mb: 2, p: 1.5,
       display: 'flex', alignItems: 'center', gap: 1.5,
       borderRadius: '6px', border: '1px solid',
-      borderColor: 'rgba(59,130,246,0.3)',
-      bgcolor: 'rgba(59,130,246,0.04)',
+      borderColor: syncMutation.isPending ? 'divider' : 'rgba(20,184,166,0.3)',
+      bgcolor: syncMutation.isPending ? 'background.paper' : 'rgba(20,184,166,0.04)',
     }}>
-      <SyncIcon fontSize="small" sx={{ color: '#3b82f6' }} />
-      <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 600 }}>
-        {googleEvents.length} evento{googleEvents.length !== 1 ? 's' : ''} do Google Calendar sincronizado{googleEvents.length !== 1 ? 's' : ''}
-      </Typography>
+      <SyncIcon
+        fontSize="small"
+        sx={{
+          color: syncMutation.isPending ? 'text.disabled' : 'primary.main',
+          animation: syncMutation.isPending ? 'spin 1.2s linear infinite' : 'none',
+          '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } },
+        }}
+      />
+      {syncMutation.isPending ? (
+        <Typography variant="caption" color="text.secondary">Sincronizando calendários…</Typography>
+      ) : (
+        <Typography variant="caption" color="primary.main" fontWeight={600}>
+          {syncResult?.synced === 0
+            ? 'Calendários verificados — nenhuma integração ativa'
+            : totalChanges > 0
+              ? `${totalChanges} evento${totalChanges !== 1 ? 's' : ''} sincronizado${totalChanges !== 1 ? 's' : ''}`
+              : 'Calendário atualizado'}
+          {pendingCount > 0 && (
+            <Typography component="span" variant="caption" color="warning.main" fontWeight={600}>
+              {' '}· {pendingCount} aguardando vinculação
+            </Typography>
+          )}
+        </Typography>
+      )}
     </Box>
   ) : null
 
@@ -359,7 +405,6 @@ export default function Agenda() {
             <MonthCalendar
               year={year} month={month}
               shifts={monthShiftsData || []}
-              googleEvents={googleEvents}
               selectedDate={selectedDate}
               onSelectDate={handleDaySelect}
               onShiftClick={handleShiftClick}

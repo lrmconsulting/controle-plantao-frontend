@@ -98,15 +98,14 @@ function formatTime(isoStr) {
 }
 
 export default function MonthCalendar({
-  year, month, shifts = [], googleEvents = [], selectedDate, onSelectDate, onShiftClick,
+  year, month, shifts = [], selectedDate, onSelectDate, onShiftClick,
 }) {
   const theme    = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const isTablet = useMediaQuery(theme.breakpoints.down('md'))
 
-  const weeks             = useMemo(() => buildCalendarWeeks(year, month), [year, month])
-  const shiftsByDate      = useMemo(() => groupShiftsByDate(shifts), [shifts])
-  const googleEventsByDate = useMemo(() => groupGoogleEventsByDate(googleEvents), [googleEvents])
+  const weeks        = useMemo(() => buildCalendarWeeks(year, month), [year, month])
+  const shiftsByDate = useMemo(() => groupShiftsByDate(shifts), [shifts])
 
   const todayKey    = dateKey(new Date())
   const selectedKey = selectedDate ? dateKey(selectedDate) : null
@@ -169,10 +168,8 @@ export default function MonthCalendar({
           }}
         >
           {week.map(({ date, isCurrentMonth }, di) => {
-            const key          = dateKey(date)
-            const dayShifts    = (shiftsByDate[key] || [])
-            const dayGoogleEvs = (googleEventsByDate[key] || [])
-            const totalItems   = dayShifts.length + dayGoogleEvs.length
+            const key       = dateKey(date)
+            const dayShifts = (shiftsByDate[key] || [])
             const isToday   = key === todayKey
             const isSel     = key === selectedKey
             const isWeekend = di >= 5 // Sáb (5) e Dom (6)
@@ -239,34 +236,37 @@ export default function MonthCalendar({
                   </Box>
                 </Box>
 
-                {/* Eventos (apenas para dias do mês atual ou com plantões) */}
+                {/* Eventos/plantões do dia */}
                 {dayShifts.slice(0, MAX_CHIPS).map((shift) => {
-                  const color     = shift.unit_detail?.color || '#94a3b8'
+                  const isPending = shift.status === 'pending'
+                  const color     = isPending ? '#f59e0b' : (shift.unit_detail?.color || '#94a3b8')
                   const startTime = formatTime(shift.start_datetime)
                   const endTime   = formatTime(shift.end_datetime)
                   const timeStr   = startTime
                     ? (endTime ? `${startTime}-${endTime}` : startTime)
                     : null
+                  const label = isPending
+                    ? (shift.cal_title || 'Sem unidade')
+                    : (shift.unit_detail?.name || shift.cal_title || 'Plantão')
 
                   return (
                     <Box
                       key={shift.id}
                       onClick={(e) => { e.stopPropagation(); onShiftClick(shift) }}
-                      title={shift.unit_detail?.name || shift.cal_title || 'Plantão'}
+                      title={label}
                       sx={{
-                        bgcolor: hexToRgba(color, 0.13),
-                        borderLeft: `3px solid ${color}`,
+                        bgcolor: isPending ? 'rgba(245,158,11,0.08)' : hexToRgba(color, 0.13),
+                        borderLeft: `3px ${isPending ? 'dashed' : 'solid'} ${color}`,
                         borderRadius: '0 3px 3px 0',
                         px: '6px',
                         py: '3px',
                         cursor: 'pointer',
                         overflow: 'hidden',
-                        // Garante que o chip não ultrapasse a largura da célula
                         minWidth: 0,
                         width: '100%',
                         transition: 'all 0.1s',
                         '&:hover': {
-                          bgcolor: hexToRgba(color, 0.25),
+                          bgcolor: isPending ? 'rgba(245,158,11,0.18)' : hexToRgba(color, 0.25),
                           transform: 'scale(1.01)',
                         },
                       }}
@@ -275,19 +275,20 @@ export default function MonthCalendar({
                         noWrap
                         sx={{
                           fontSize: isMobile ? '0.6rem' : '0.7rem',
-                          fontWeight: 700,
-                          color: color,
+                          fontWeight: isPending ? 500 : 700,
+                          fontStyle: isPending ? 'italic' : 'normal',
+                          color,
                           lineHeight: 1.3,
                         }}
                       >
-                        {shift.unit_detail?.name || shift.cal_title || 'Plantão'}
+                        {label}
                       </Typography>
                       {!isMobile && timeStr && (
                         <Typography
                           noWrap
                           sx={{
                             fontSize: '0.62rem',
-                            color: hexToRgba(color, 0.8),
+                            color: isPending ? 'rgba(245,158,11,0.8)' : hexToRgba(color, 0.8),
                             lineHeight: 1.2,
                           }}
                         >
@@ -298,50 +299,8 @@ export default function MonthCalendar({
                   )
                 })}
 
-                {/* Eventos Google Calendar (após os plantões) */}
-                {dayShifts.length < MAX_CHIPS && dayGoogleEvs.slice(0, MAX_CHIPS - dayShifts.length).map((ev) => {
-                  const startTime = formatGoogleTime(ev.start)
-                  return (
-                    <Box
-                      key={ev.id}
-                      onClick={(e) => { e.stopPropagation(); ev.html_link && window.open(ev.html_link, '_blank') }}
-                      title={ev.title}
-                      sx={{
-                        bgcolor: 'rgba(59,130,246,0.08)',
-                        borderLeft: '3px solid #3b82f6',
-                        borderRadius: '0 3px 3px 0',
-                        px: '6px',
-                        py: '3px',
-                        cursor: ev.html_link ? 'pointer' : 'default',
-                        overflow: 'hidden',
-                        minWidth: 0,
-                        width: '100%',
-                        transition: 'all 0.1s',
-                        '&:hover': ev.html_link ? { bgcolor: 'rgba(59,130,246,0.16)' } : {},
-                      }}
-                    >
-                      <Typography
-                        noWrap
-                        sx={{
-                          fontSize: isMobile ? '0.6rem' : '0.7rem',
-                          fontWeight: 600,
-                          color: '#3b82f6',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {ev.title}
-                      </Typography>
-                      {!isMobile && startTime && (
-                        <Typography noWrap sx={{ fontSize: '0.62rem', color: 'rgba(59,130,246,0.7)', lineHeight: 1.2 }}>
-                          {startTime}
-                        </Typography>
-                      )}
-                    </Box>
-                  )
-                })}
-
-                {/* Overflow (plantões + eventos Google juntos) */}
-                {totalItems > MAX_CHIPS && (
+                {/* Overflow */}
+                {dayShifts.length > MAX_CHIPS && (
                   <Typography
                     sx={{
                       fontSize: '0.6rem',
@@ -351,7 +310,7 @@ export default function MonthCalendar({
                       lineHeight: 1.4,
                     }}
                   >
-                    +{totalItems - MAX_CHIPS} mais
+                    +{dayShifts.length - MAX_CHIPS} mais
                   </Typography>
                 )}
 

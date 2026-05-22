@@ -149,13 +149,23 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
         )}
 
         {!shift.unit && (
-          <Box sx={{ mt: 1, p: 1.5, bgcolor: '#fff7ed', borderRadius: 2, border: '1px solid #fed7aa' }}>
-            <Typography variant="caption" color="warning.dark" fontWeight={600}>
-              Plantão sem unidade vinculada
+          <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fffbeb', borderRadius: 2, border: '1px solid #fcd34d' }}>
+            <Typography variant="body2" color="warning.dark" fontWeight={700} mb={0.5}>
+              Evento sem unidade vinculada
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-              Edite o plantão para vincular a uma unidade e registrar o valor.
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Importado do {shift.cal_source === 'google' ? 'Google Calendar' : shift.cal_source === 'apple' ? 'Apple Calendar' : 'calendário'}.
+              Vincule a uma unidade para registrar o valor e incluir no financeiro.
             </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              fullWidth
+              onClick={onEdit}
+              sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
+            >
+              Vincular unidade agora →
+            </Button>
           </Box>
         )}
 
@@ -186,6 +196,13 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
 
       {/* Footer com ações de status + excluir */}
       <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {/* Ação principal: vincular unidade (eventos pendentes) */}
+        {shift.status === 'pending' && (
+          <Button variant="contained" fullWidth onClick={onEdit}>
+            Vincular a uma unidade
+          </Button>
+        )}
+
         {/* Ação principal de status */}
         {shift.status === 'scheduled' && (
           <Button

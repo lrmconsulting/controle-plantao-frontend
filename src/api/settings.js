@@ -35,8 +35,8 @@ export const integrationsApi = {
   /** Conecta Apple CalDAV: { caldav_url, username, password, sync_from_date? } */
   appleConnect: (data) => api.post('/integrations/apple/connect/', data),
 
-  /** Sincronização manual */
-  sync: () => api.post('/integrations/sync/'),
+  /** Sincronização: month = 'YYYY-MM' (opcional) */
+  sync: (month) => api.post('/integrations/sync/', month ? { month } : {}),
 
   /** Eventos do Google Calendar para um mês: month = 'YYYY-MM' */
   googleEvents: (month) => api.get('/integrations/google/events/', { params: { month } }),
