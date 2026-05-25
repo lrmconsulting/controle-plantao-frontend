@@ -1,36 +1,32 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Box, Typography, IconButton, Button, Chip, Fab,
-  Skeleton, useTheme, useMediaQuery, Divider, Tooltip,
+  Skeleton, useTheme, useMediaQuery, Tooltip,
   ToggleButtonGroup, ToggleButton,
 } from '@mui/material'
-import ChevronLeftIcon  from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import AddIcon          from '@mui/icons-material/Add'
+import ChevronLeftIcon   from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon  from '@mui/icons-material/ChevronRight'
+import AddIcon           from '@mui/icons-material/Add'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
-import ViewModuleIcon   from '@mui/icons-material/ViewModule'
-import SyncIcon         from '@mui/icons-material/Sync'
+import ViewModuleIcon    from '@mui/icons-material/ViewModule'
+import SyncIcon          from '@mui/icons-material/Sync'
+import LinkIcon          from '@mui/icons-material/Link'
+import EventIcon         from '@mui/icons-material/Event'
+import CheckCircleIcon   from '@mui/icons-material/CheckCircle'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { shiftsApi }       from '@/api/shifts'
 import { integrationsApi } from '@/api/settings'
 
-import MonthCalendar    from './components/MonthCalendar'
-import YearCalendar     from './components/YearCalendar'
-import ShiftDrawer      from './components/ShiftDrawer'
+import MonthCalendar     from './components/MonthCalendar'
+import YearCalendar      from './components/YearCalendar'
+import ShiftDrawer       from './components/ShiftDrawer'
 import ShiftDetailDrawer from './components/ShiftDetailDrawer'
 
 const MONTHS_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
-
-const STATUS_CONFIG = {
-  pending:   { label: 'Pendente',  color: 'default' },
-  scheduled: { label: 'Agendado', color: 'info' },
-  completed: { label: 'Realizado', color: 'success' },
-  cancelled: { label: 'Cancelado', color: 'error' },
-}
 
 function formatTime(isoStr) {
   if (!isoStr) return null
@@ -42,106 +38,165 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-/* ─── Lista lateral / mobile de plantões ─── */
-function ShiftList({ shifts, selectedDate, onShiftClick, loading }) {
-  const filtered = useMemo(() => {
-    if (!selectedDate) return [...shifts].sort(
-      (a, b) => new Date(a.start_datetime) - new Date(b.start_datetime)
-    )
-    const key = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
-    return shifts.filter((s) => {
-      const dt = new Date(s.start_datetime)
-      const sk = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-      return sk === key
-    })
-  }, [shifts, selectedDate])
+/* ─────────────────────────────────────────────────────────────────────────
+   ShiftColumn — coluna de plantões paginada
+───────────────────────────────────────────────────────────────────────── */
+const PAGE_SIZE = 10
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={64} />)}
-      </Box>
-    )
-  }
-
-  if (filtered.length === 0) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 5 }}>
-        <CalendarTodayIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
-        <Typography variant="body2" color="text.secondary">
-          {selectedDate ? 'Nenhum plantão neste dia' : 'Nenhum plantão neste mês'}
-        </Typography>
-      </Box>
-    )
-  }
+function ShiftItem({ shift, onShiftClick }) {
+  const dt        = new Date(shift.start_datetime)
+  const startTime = formatTime(shift.start_datetime)
+  const endTime   = formatTime(shift.end_datetime)
+  const isPending = shift.status === 'pending'
+  const color     = isPending ? '#f59e0b' : (shift.unit_detail?.color || '#94a3b8')
+  const label     = shift.unit_detail?.name || shift.cal_title || 'Sem unidade'
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {filtered.map((shift) => {
-        const status    = STATUS_CONFIG[shift.status] || STATUS_CONFIG.pending
-        const startTime = formatTime(shift.start_datetime)
-        const endTime   = formatTime(shift.end_datetime)
-        const dt        = new Date(shift.start_datetime)
+    <Box
+      onClick={() => onShiftClick(shift)}
+      sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        p: 1.25, borderRadius: '6px',
+        border: '1px solid', borderColor: 'divider',
+        bgcolor: 'background.paper',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        '&:hover': { borderColor: 'primary.main', bgcolor: '#f0fdfa', transform: 'translateX(2px)' },
+      }}
+    >
+      {/* Barra colorida */}
+      <Box sx={{
+        width: 3, alignSelf: 'stretch', borderRadius: 4,
+        bgcolor: color, flexShrink: 0,
+        borderStyle: isPending ? 'dashed' : 'solid',
+      }} />
 
-        return (
-          <Box
-            key={shift.id}
-            onClick={() => onShiftClick(shift)}
-            sx={{
-              display: 'flex', alignItems: 'center', gap: 1.5,
-              p: 1.5, borderRadius: '6px', border: '1px solid', borderColor: 'divider',
-              bgcolor: 'background.paper', cursor: 'pointer',
-              transition: 'all 0.15s',
-              '&:hover': { borderColor: 'primary.main', bgcolor: '#f0fdfa', transform: 'translateX(2px)' },
-            }}
-          >
-            {/* Barra colorida */}
-            <Box sx={{ width: 4, alignSelf: 'stretch', borderRadius: 4, bgcolor: shift.unit_detail?.color || '#e2e8f0', flexShrink: 0 }} />
+      {/* Badge de data */}
+      <Box sx={{ textAlign: 'center', minWidth: 28, flexShrink: 0 }}>
+        <Typography sx={{ fontSize: '0.58rem', textTransform: 'uppercase', color: 'text.disabled', lineHeight: 1 }}>
+          {MONTHS_PT[dt.getMonth()].slice(0, 3)}
+        </Typography>
+        <Typography fontWeight={700} sx={{ lineHeight: 1.3, fontSize: '0.85rem' }}>
+          {dt.getDate()}
+        </Typography>
+      </Box>
 
-            {/* Data compacta (quando mostrando mês todo) */}
-            {!selectedDate && (
-              <Box sx={{ textAlign: 'center', minWidth: 32, flexShrink: 0 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', textTransform: 'uppercase', lineHeight: 1 }}>
-                  {MONTHS_PT[dt.getMonth()].slice(0, 3)}
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.3 }}>
-                  {dt.getDate()}
-                </Typography>
-              </Box>
-            )}
+      {/* Info */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: '0.8rem', fontStyle: isPending ? 'italic' : 'normal' }}>
+          {label}
+        </Typography>
+        {startTime && (
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            {startTime}{endTime ? ` – ${endTime}` : ''}
+          </Typography>
+        )}
+      </Box>
 
-            {/* Info */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" fontWeight={600} noWrap>
-                {shift.unit_detail?.name || shift.cal_title || 'Plantão sem unidade'}
-              </Typography>
-              {startTime && (
-                <Typography variant="caption" color="text.secondary">
-                  {startTime}{endTime ? ` – ${endTime}` : ''}
-                </Typography>
-              )}
-            </Box>
-
-            {/* Status + valor */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
-              <Chip label={status.label} color={status.color} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
-              {shift.effective_value && (
-                <Typography variant="caption" fontWeight={600} color="text.secondary">
-                  {formatCurrency(shift.effective_value)}
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        )
-      })}
+      {/* Valor */}
+      {shift.effective_value && parseFloat(shift.effective_value) > 0 && (
+        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ flexShrink: 0, fontSize: '0.7rem' }}>
+          {formatCurrency(shift.effective_value)}
+        </Typography>
+      )}
     </Box>
   )
 }
 
-/* ─── Página principal ─── */
+function ShiftColumn({ title, accentColor, icon, shifts, onShiftClick, loading, emptyMessage }) {
+  const [page, setPage] = useState(0)
+
+  // Reseta página quando os shifts mudam (troca de mês)
+  useEffect(() => { setPage(0) }, [shifts])
+
+  const totalPages = Math.ceil(shifts.length / PAGE_SIZE)
+  const pageShifts = shifts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  return (
+    <Box
+      sx={{
+        display: 'flex', flexDirection: 'column',
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: '8px', overflow: 'hidden',
+        bgcolor: 'background.paper',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      {/* Cabeçalho da coluna */}
+      <Box
+        sx={{
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', gap: 1,
+          borderBottom: '1px solid', borderColor: 'divider',
+          bgcolor: '#f8fafc',
+        }}
+      >
+        <Box sx={{ color: accentColor, display: 'flex', alignItems: 'center', fontSize: 18 }}>
+          {icon}
+        </Box>
+        <Typography variant="subtitle2" fontWeight={700} flex={1} sx={{ fontSize: '0.82rem' }}>
+          {title}
+        </Typography>
+        <Chip
+          label={shifts.length}
+          size="small"
+          sx={{
+            height: 18, fontSize: '0.65rem', fontWeight: 700,
+            bgcolor: accentColor + '22', color: accentColor,
+            border: `1px solid ${accentColor}44`,
+          }}
+        />
+      </Box>
+
+      {/* Lista de itens */}
+      <Box sx={{ flex: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.75, minHeight: 80 }}>
+        {loading ? (
+          [1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={54} />)
+        ) : pageShifts.length === 0 ? (
+          <Box sx={{ py: 4, textAlign: 'center' }}>
+            <CalendarTodayIcon sx={{ fontSize: 28, color: 'text.disabled', mb: 0.5 }} />
+            <Typography variant="caption" color="text.disabled" display="block">
+              {emptyMessage}
+            </Typography>
+          </Box>
+        ) : (
+          pageShifts.map(shift => (
+            <ShiftItem key={shift.id} shift={shift} onShiftClick={onShiftClick} />
+          ))
+        )}
+      </Box>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <Box
+          sx={{
+            px: 1.5, py: 0.75,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderTop: '1px solid', borderColor: 'divider',
+            bgcolor: '#fafafa',
+          }}
+        >
+          <IconButton size="small" onClick={() => setPage(p => p - 1)} disabled={page === 0}>
+            <ChevronLeftIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+          <Typography variant="caption" color="text.secondary">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, shifts.length)} de {shifts.length}
+          </Typography>
+          <IconButton size="small" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
+            <ChevronRightIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Agenda — Página principal
+───────────────────────────────────────────────────────────────────────── */
 export default function Agenda() {
-  const theme       = useTheme()
-  const isMobile    = useMediaQuery(theme.breakpoints.down('md'))
+  const theme    = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const queryClient = useQueryClient()
 
   const today = new Date()
@@ -176,7 +231,7 @@ export default function Agenda() {
     enabled: view === 'year',
   })
 
-  // ── Auto-sync com calendários externos ──
+  /* ── Auto-sync ── */
   const lastSyncedMonth = useRef(null)
   const [syncResult, setSyncResult] = useState(null)
 
@@ -185,16 +240,12 @@ export default function Agenda() {
     onSuccess: (res) => {
       const data = res.data
       setSyncResult(data)
-      // Recarrega shifts se houve mudanças
       if ((data.created || 0) + (data.updated || 0) + (data.deleted || 0) > 0) {
         queryClient.invalidateQueries({ queryKey: ['shifts', monthStr] })
         queryClient.invalidateQueries({ queryKey: ['monthly-summary', monthStr] })
       }
     },
-    onError: () => {
-      // Silencia erros (sem integrações ativas é normal retornar synced: 0)
-      setSyncResult(null)
-    },
+    onError: () => setSyncResult(null),
   })
 
   useEffect(() => {
@@ -249,22 +300,44 @@ export default function Agenda() {
     setDrawerOpen(true)
   }
 
-  /* ── Resumo ── */
-  const activeShifts = (view === 'month' ? (monthShiftsData || []) : []).filter(s => s.status !== 'cancelled')
+  /* ── Particionamento por status ── */
+  const allShifts    = monthShiftsData || []
+  const pendingShifts    = useMemo(() =>
+    allShifts.filter(s => s.status === 'pending')
+      .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime)),
+    [allShifts]
+  )
+  const scheduledShifts  = useMemo(() =>
+    allShifts.filter(s => s.status === 'scheduled')
+      .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime)),
+    [allShifts]
+  )
+  const completedShifts  = useMemo(() =>
+    allShifts.filter(s => s.status === 'completed')
+      .sort((a, b) => new Date(b.start_datetime) - new Date(a.start_datetime)),
+    [allShifts]
+  )
+
+  /* ── Resumo mensal ── */
+  const activeShifts = allShifts.filter(s => s.status !== 'cancelled')
   const totalValue   = activeShifts
     .filter(s => ['scheduled', 'completed'].includes(s.status) && s.effective_value)
     .reduce((sum, s) => sum + parseFloat(s.effective_value || 0), 0)
+
+  /* ── Banner de sincronização ── */
+  const totalChanges = syncResult
+    ? (syncResult.created || 0) + (syncResult.updated || 0)
+    : 0
 
   /* ── Título do período ── */
   const periodTitle = view === 'year'
     ? String(year)
     : `${MONTHS_PT[month]} ${year}`
 
-  /* ── Header compartilhado ── */
+  /* ── Header ── */
   const header = (
     <Box sx={{ px: { xs: 2, md: 3 }, pt: 2, pb: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        {/* Navegação */}
         <IconButton size="small" onClick={prevPeriod}><ChevronLeftIcon /></IconButton>
         <Typography variant="h6" fontWeight={700} sx={{ minWidth: { xs: 'auto', sm: 200 }, textAlign: 'center', flex: { xs: 1, sm: 'none' } }}>
           {periodTitle}
@@ -283,8 +356,10 @@ export default function Agenda() {
             '& .MuiToggleButton-root': {
               px: 1.5, py: 0.5, fontSize: '0.75rem', fontWeight: 600,
               border: '1px solid', borderColor: 'divider', textTransform: 'none',
-              '&.Mui-selected': { bgcolor: 'primary.main', color: 'white', borderColor: 'primary.main',
-                '&:hover': { bgcolor: 'primary.dark' } },
+              '&.Mui-selected': {
+                bgcolor: 'primary.main', color: 'white', borderColor: 'primary.main',
+                '&:hover': { bgcolor: 'primary.dark' },
+              },
             },
           }}
         >
@@ -311,7 +386,7 @@ export default function Agenda() {
         )}
       </Box>
 
-      {/* Resumo mensal (só na visão mensal) */}
+      {/* Resumo mensal */}
       {view === 'month' && activeShifts.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 1 }}>
           <Typography variant="caption" color="text.secondary">
@@ -330,16 +405,10 @@ export default function Agenda() {
     </Box>
   )
 
-  /* ── Banner de sincronização ── */
-  const totalChanges = syncResult
-    ? (syncResult.created || 0) + (syncResult.updated || 0)
-    : 0
-  const pendingCount = (view === 'month' ? (monthShiftsData || []) : [])
-    .filter(s => s.status === 'pending').length
-
+  /* ── Banner de sync ── */
   const syncBanner = (syncMutation.isPending || syncResult) ? (
     <Box sx={{
-      mx: { xs: 2, md: 3 }, mb: 2, p: 1.5,
+      mx: { xs: 2, md: 3 }, mb: 1.5, px: 1.5, py: 1,
       display: 'flex', alignItems: 'center', gap: 1.5,
       borderRadius: '6px', border: '1px solid',
       borderColor: syncMutation.isPending ? 'divider' : 'rgba(20,184,166,0.3)',
@@ -362,9 +431,9 @@ export default function Agenda() {
             : totalChanges > 0
               ? `${totalChanges} evento${totalChanges !== 1 ? 's' : ''} sincronizado${totalChanges !== 1 ? 's' : ''}`
               : 'Calendário atualizado'}
-          {pendingCount > 0 && (
+          {pendingShifts.length > 0 && (
             <Typography component="span" variant="caption" color="warning.main" fontWeight={600}>
-              {' '}· {pendingCount} aguardando vinculação
+              {' '}· {pendingShifts.length} aguardando vinculação
             </Typography>
           )}
         </Typography>
@@ -372,7 +441,7 @@ export default function Agenda() {
     </Box>
   ) : null
 
-  /* ═══════════════════════════ VISÃO ANUAL ═══════════════════════════ */
+  /* ════════════════════ VISÃO ANUAL ════════════════════ */
   if (view === 'year') {
     return (
       <Box sx={{ pb: 4 }}>
@@ -390,65 +459,14 @@ export default function Agenda() {
     )
   }
 
-  /* ═══════════════════════════ VISÃO MENSAL ═══════════════════════════ */
-
-  // Desktop: calendário (2/3) + lista (1/3)
-  if (!isMobile) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {header}
-        {syncBanner}
-
-        <Box sx={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden', px: 3, pb: 3 }}>
-          {/* Calendário */}
-          <Box sx={{ flex: 2, overflow: 'auto', pr: 2 }}>
-            <MonthCalendar
-              year={year} month={month}
-              shifts={monthShiftsData || []}
-              selectedDate={selectedDate}
-              onSelectDate={handleDaySelect}
-              onShiftClick={handleShiftClick}
-            />
-          </Box>
-
-          <Divider orientation="vertical" flexItem />
-
-          {/* Lista */}
-          <Box sx={{ flex: 1, overflow: 'auto', pl: 2, minWidth: 260 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
-                {selectedDate
-                  ? selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
-                  : `Plantões de ${MONTHS_PT[month]}`}
-              </Typography>
-              {selectedDate && (
-                <Button size="small" onClick={() => setSelectedDate(null)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
-                  Ver todos
-                </Button>
-              )}
-            </Box>
-            <ShiftList
-              shifts={monthShiftsData || []}
-              selectedDate={selectedDate}
-              onShiftClick={handleShiftClick}
-              loading={monthLoading}
-            />
-          </Box>
-        </Box>
-
-        <ShiftDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} shift={editShift} initialDate={createDate} />
-        <ShiftDetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} shift={detailShift} onEdit={() => openEdit(detailShift)} />
-      </Box>
-    )
-  }
-
-  // Mobile: empilhado
+  /* ════════════════════ VISÃO MENSAL ════════════════════ */
   return (
-    <Box sx={{ pb: 2 }}>
+    <Box sx={{ pb: 4 }}>
       {header}
       {syncBanner}
 
-      <Box sx={{ px: 2, mb: 3 }}>
+      {/* ── Calendário — largura total ── */}
+      <Box sx={{ px: { xs: 2, md: 3 }, mb: 3 }}>
         <MonthCalendar
           year={year} month={month}
           shifts={monthShiftsData || []}
@@ -458,36 +476,69 @@ export default function Agenda() {
         />
       </Box>
 
-      <Divider sx={{ mb: 2 }} />
-
-      <Box sx={{ px: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
-            {selectedDate
-              ? selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
-              : `Plantões de ${MONTHS_PT[month]}`}
-          </Typography>
-          {selectedDate && (
-            <Button size="small" onClick={() => setSelectedDate(null)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
-              Ver todos
-            </Button>
-          )}
-        </Box>
-        <ShiftList
-          shifts={monthShiftsData || []}
-          selectedDate={selectedDate}
+      {/* ── 3 Colunas ── */}
+      <Box
+        sx={{
+          px: { xs: 2, md: 3 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+          gap: 2,
+          alignItems: 'start',
+        }}
+      >
+        {/* Coluna 1 — Pendentes de vínculo */}
+        <ShiftColumn
+          title="Pendentes de vínculo"
+          accentColor="#f59e0b"
+          icon={<LinkIcon fontSize="inherit" />}
+          shifts={pendingShifts}
           onShiftClick={handleShiftClick}
           loading={monthLoading}
+          emptyMessage="Nenhum evento aguardando vinculação"
+        />
+
+        {/* Coluna 2 — Agendados */}
+        <ShiftColumn
+          title="Agendados"
+          accentColor="#0ea5e9"
+          icon={<EventIcon fontSize="inherit" />}
+          shifts={scheduledShifts}
+          onShiftClick={handleShiftClick}
+          loading={monthLoading}
+          emptyMessage="Nenhum plantão agendado"
+        />
+
+        {/* Coluna 3 — Realizados */}
+        <ShiftColumn
+          title="Realizados"
+          accentColor="#10b981"
+          icon={<CheckCircleIcon fontSize="inherit" />}
+          shifts={completedShifts}
+          onShiftClick={handleShiftClick}
+          loading={monthLoading}
+          emptyMessage="Nenhum plantão realizado"
         />
       </Box>
 
       {/* FAB mobile */}
-      <Fab color="primary" onClick={() => openCreate(selectedDate)} sx={{ position: 'fixed', bottom: 80, right: 16, zIndex: 1200 }}>
-        <AddIcon />
-      </Fab>
+      {isMobile && (
+        <Fab color="primary" onClick={() => openCreate(selectedDate)} sx={{ position: 'fixed', bottom: 80, right: 16, zIndex: 1200 }}>
+          <AddIcon />
+        </Fab>
+      )}
 
-      <ShiftDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} shift={editShift} initialDate={createDate} />
-      <ShiftDetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} shift={detailShift} onEdit={() => openEdit(detailShift)} />
+      <ShiftDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        shift={editShift}
+        initialDate={createDate}
+      />
+      <ShiftDetailDrawer
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        shift={detailShift}
+        onEdit={() => openEdit(detailShift)}
+      />
     </Box>
   )
 }
