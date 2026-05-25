@@ -248,19 +248,20 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
           </Box>
         ) : (
           <>
-            {/* Ação primária por status */}
-            {shift.status === 'pending' && (
+            {/* Ação primária — só existe quando há unidade vinculada */}
+            {!shift.unit && (
               <Button
                 variant="contained"
                 size="small"
                 fullWidth
                 startIcon={<LinkIcon />}
                 onClick={onEdit}
+                sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
               >
                 Vincular unidade
               </Button>
             )}
-            {shift.status === 'scheduled' && (
+            {shift.unit && shift.status === 'scheduled' && (
               <Button
                 variant="contained"
                 color="success"
@@ -273,7 +274,7 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
                 Marcar como realizado
               </Button>
             )}
-            {shift.status === 'completed' && (
+            {shift.unit && shift.status === 'completed' && (
               <Button
                 variant="outlined"
                 size="small"
@@ -294,7 +295,7 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
                 </IconButton>
               </Tooltip>
 
-              {shift.status !== 'cancelled' && (
+              {shift.unit && shift.status !== 'cancelled' && (
                 <Tooltip title="Cancelar plantão">
                   <IconButton
                     size="small"

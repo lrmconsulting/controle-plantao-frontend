@@ -4,23 +4,25 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Drawer, Box, Typography, TextField, Button, IconButton,
-  MenuItem, CircularProgress,
+  MenuItem, CircularProgress, Alert, Chip,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
+import CloseIcon  from '@mui/icons-material/Close'
+import LinkIcon   from '@mui/icons-material/Link'
+import AddIcon    from '@mui/icons-material/Add'
+import SyncIcon   from '@mui/icons-material/Sync'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { shiftsApi } from '@/api/shifts'
-import { unitsApi } from '@/api/units'
+import { unitsApi }  from '@/api/units'
 
 const schema = z.object({
-  start_date:  z.string().min(1, 'Data obrigatória'),
-  start_time:  z.string().min(1, 'Horário de início obrigatório'),
-  end_time:    z.string().optional(),
-  unit:        z.string().optional(),
-  cal_title:   z.string().optional(),
-  notes:       z.string().optional(),
+  start_date: z.string().min(1, 'Data obrigatória'),
+  start_time: z.string().min(1, 'Horário de início obrigatório'),
+  end_time:   z.string().optional(),
+  unit:       z.string().optional(),
+  cal_title:  z.string().optional(),
+  notes:      z.string().optional(),
 })
 
-/** Converte Date para string 'YYYY-MM-DD' */
 function toDateStr(date) {
   if (!date) return ''
   const y = date.getFullYear()
@@ -29,26 +31,25 @@ function toDateStr(date) {
   return `${y}-${m}-${d}`
 }
 
-/** Extrai 'HH:MM' de uma string ISO datetime */
 function toTimeStr(isoStr) {
   if (!isoStr) return ''
   const dt = new Date(isoStr)
   return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
 }
 
-/** Combina data (YYYY-MM-DD) + horário (HH:MM) em ISO string local */
 function toISO(dateStr, timeStr) {
   return `${dateStr}T${timeStr}:00`
 }
 
 export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
   const queryClient = useQueryClient()
-  const isEdit = !!shift
+  const isEdit          = !!shift
+  const isCalendarEvent = isEdit && shift?.cal_source !== 'manual'
 
   const { data: units } = useQuery({
     queryKey: ['units'],
-    queryFn: () => unitsApi.list({ is_active: true }),
-    select: (res) => res.data.results ?? res.data,
+    queryFn:  () => unitsApi.list({ is_active: true }),
+    select:   (res) => res.data.results ?? res.data,
   })
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm({
@@ -86,15 +87,12 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
         unit:           data.unit || null,
         cal_title:      data.cal_title || '',
         notes:          data.notes || '',
-        // cal_source só é definido em criações manuais — NUNCA enviar em edições
-        // para não sobrescrever a origem de eventos vindos do Google/Apple
         ...(!isEdit && { cal_source: 'manual' }),
       }
       return isEdit ? shiftsApi.update(shift.id, payload) : shiftsApi.create(payload)
     },
     onSuccess: (res) => {
-      // Invalida o mês do plantão criado/editado (agenda + financeiro)
-      const dt = new Date(res.data.start_datetime)
+      const dt    = new Date(res.data.start_datetime)
       const month = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
       queryClient.invalidateQueries({ queryKey: ['shifts', month] })
       queryClient.invalidateQueries({ queryKey: ['monthly-summary', month] })
@@ -102,58 +100,73 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
     },
   })
 
+  /* ── Título e subtítulo contextuais ── */
+  const title = isCalendarEvent
+    ? 'Vincular a uma unidade'
+    : isEdit
+      ? 'Editar plantão'
+      : 'Novo plantão'
+
+  const subtitle = isCalendarEvent
+    ? (shift?.cal_title || 'Evento importado do calendário')
+    : isEdit
+      ? 'Edite os dados do plantão'
+      : 'Crie um plantão manualmente'
+
+  const headerIcon = isCalendarEvent
+    ? <SyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+    : <AddIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+
   return (
     <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: '100%', sm: 440 }, maxWidth: '100vw', p: 0, overflowX: 'hidden' } }}
+      PaperProps={{ sx: { width: { xs: '100%', sm: 420 }, maxWidth: '100vw', p: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
-      {/* Header */}
-      <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Box>
-          <Typography variant="h6" fontWeight={700}>
-            {isEdit ? 'Editar plantão' : 'Novo plantão'}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Registre um plantão manualmente
-          </Typography>
+      {/* ── Header ── */}
+      <Box sx={{
+        px: 2.5, py: 2,
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+        borderBottom: '1px solid', borderColor: 'divider',
+        bgcolor: '#f8fafc',
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+          <Box sx={{ mt: '2px' }}>{headerIcon}</Box>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+              {title}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 280, display: 'block' }}>
+              {subtitle}
+            </Typography>
+          </Box>
         </Box>
-        <IconButton onClick={onClose} size="small"><CloseIcon fontSize="small" /></IconButton>
+        <IconButton onClick={onClose} size="small" sx={{ mt: '-2px' }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
       </Box>
 
-      {/* Form */}
+      {/* ── Formulário ── */}
       <Box
         component="form"
         onSubmit={handleSubmit((d) => mutation.mutate(d))}
-        sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}
+        sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 1.75 }}
       >
-        <TextField
-          label="Data"
-          type="date"
-          {...register('start_date')}
-          error={!!errors.start_date}
-          helperText={errors.start_date?.message}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-          <TextField
-            label="Início"
-            type="time"
-            {...register('start_time')}
-            error={!!errors.start_time}
-            helperText={errors.start_time?.message}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-          <TextField
-            label="Fim (opcional)"
-            type="time"
-            {...register('end_time')}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-        </Box>
+        {/* Para eventos de calendário: unidade em destaque no topo */}
+        {isCalendarEvent && (
+          <Box sx={{ p: 1.5, bgcolor: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', mb: 0.25 }}>
+            <Typography variant="caption" color="warning.dark" fontWeight={700} display="block" mb={0.25}>
+              Evento importado — selecione a unidade correspondente
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Isso converte o evento em plantão e habilita o controle financeiro.
+            </Typography>
+          </Box>
+        )}
 
+        {/* Unidade */}
         <Controller
           name="unit"
           control={control}
@@ -161,7 +174,8 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
             <TextField
               {...field}
               select
-              label="Unidade (opcional)"
+              size="small"
+              label={isCalendarEvent ? 'Unidade *' : 'Unidade (opcional)'}
               error={!!errors.unit}
               helperText={errors.unit?.message}
             >
@@ -169,8 +183,11 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
               {(units || []).map((u) => (
                 <MenuItem key={u.id} value={u.id}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: u.color || '#94a3b8', flexShrink: 0 }} />
-                    {u.name}
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: u.color || '#94a3b8', flexShrink: 0 }} />
+                    <Typography variant="body2">{u.name}</Typography>
+                    {u.institution_name && (
+                      <Typography variant="caption" color="text.secondary">· {u.institution_name}</Typography>
+                    )}
                   </Box>
                 </MenuItem>
               ))}
@@ -178,36 +195,98 @@ export default function ShiftDrawer({ open, onClose, shift, initialDate }) {
           )}
         />
 
+        {/* Data */}
         <TextField
-          label="Título (opcional)"
-          placeholder="Ex: Plantão UTI noturno"
-          {...register('cal_title')}
+          size="small"
+          label="Data"
+          type="date"
+          {...register('start_date')}
+          error={!!errors.start_date}
+          helperText={errors.start_date?.message}
+          slotProps={{ inputLabel: { shrink: true } }}
+          disabled={isCalendarEvent}
         />
 
+        {/* Horários */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+          <TextField
+            size="small"
+            label="Início"
+            type="time"
+            {...register('start_time')}
+            error={!!errors.start_time}
+            helperText={errors.start_time?.message}
+            slotProps={{ inputLabel: { shrink: true } }}
+            disabled={isCalendarEvent}
+          />
+          <TextField
+            size="small"
+            label="Fim"
+            type="time"
+            {...register('end_time')}
+            slotProps={{ inputLabel: { shrink: true } }}
+            disabled={isCalendarEvent}
+          />
+        </Box>
+
+        {/* Título — só para eventos manuais */}
+        {!isCalendarEvent && (
+          <TextField
+            size="small"
+            label="Título (opcional)"
+            placeholder="Ex: Plantão UTI noturno"
+            {...register('cal_title')}
+          />
+        )}
+
+        {/* Observações */}
         <TextField
+          size="small"
           label="Observações (opcional)"
           multiline
           rows={2}
           {...register('notes')}
         />
 
+        {/* Erro do servidor */}
         {mutation.isError && (
-          <Typography color="error" variant="caption">
+          <Alert severity="error" sx={{ py: 0.5, fontSize: '0.78rem' }}>
             Erro ao salvar. Tente novamente.
-          </Typography>
+          </Alert>
         )}
       </Box>
 
-      {/* Footer */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
-        <Button variant="outlined" onClick={onClose}>Cancelar</Button>
+      {/* ── Footer ── */}
+      <Box sx={{
+        px: 2.5, py: 1.75,
+        borderTop: '1px solid', borderColor: 'divider',
+        display: 'flex', gap: 1, justifyContent: 'flex-end',
+        bgcolor: '#fafafa',
+      }}>
+        <Button size="small" variant="outlined" onClick={onClose} disabled={mutation.isPending}>
+          Cancelar
+        </Button>
         <Button
+          size="small"
           variant="contained"
           onClick={handleSubmit((d) => mutation.mutate(d))}
           disabled={mutation.isPending}
-          sx={{ minWidth: 110 }}
+          startIcon={
+            mutation.isPending
+              ? <CircularProgress size={14} color="inherit" />
+              : isCalendarEvent
+                ? <LinkIcon sx={{ fontSize: 16 }} />
+                : undefined
+          }
+          sx={{ minWidth: 100 }}
         >
-          {mutation.isPending ? <CircularProgress size={18} color="inherit" /> : isEdit ? 'Salvar' : 'Criar'}
+          {mutation.isPending
+            ? 'Salvando…'
+            : isCalendarEvent
+              ? 'Vincular'
+              : isEdit
+                ? 'Salvar'
+                : 'Criar plantão'}
         </Button>
       </Box>
     </Drawer>
