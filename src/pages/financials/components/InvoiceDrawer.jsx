@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -31,11 +31,12 @@ function toMonthStr(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** Últimos 12 meses como opções de select */
+/** Gera opções de mês: 3 meses à frente + 12 meses para trás a partir de hoje */
 function buildMonthOptions() {
   const options = []
   const now = new Date()
-  for (let i = 0; i < 13; i++) {
+  // i negativo = meses futuros; i positivo = meses passados
+  for (let i = -3; i < 13; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const value = toMonthStr(d)
     const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -43,8 +44,6 @@ function buildMonthOptions() {
   }
   return options
 }
-
-const MONTH_OPTIONS = buildMonthOptions()
 
 export default function InvoiceDrawer({
   open,
@@ -58,6 +57,9 @@ export default function InvoiceDrawer({
 }) {
   const queryClient = useQueryClient()
   const [serverError, setServerError] = useState(null)
+
+  // Calculado no render para sempre refletir a data atual
+  const MONTH_OPTIONS = useMemo(() => buildMonthOptions(), [])
 
   /* ── Instituições (modo generate) ── */
   const { data: institutions } = useQuery({
