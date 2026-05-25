@@ -23,6 +23,8 @@ import SyncIcon from '@mui/icons-material/Sync'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import Visibility from '@mui/icons-material/Visibility'
 import VisibilityOff from '@mui/icons-material/VisibilityOff'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import { profileApi, preferencesApi, integrationsApi } from '@/api/settings'
 import { useAuthStore } from '@/store/authStore'
@@ -46,9 +48,8 @@ const passwordSchema = z.object({
 })
 
 const appleSchema = z.object({
-  caldav_url: z.string().url('URL inválida').optional().or(z.literal('')),
-  username:   z.string().email('E-mail Apple ID inválido'),
-  password:   z.string().min(1, 'App Password é obrigatória'),
+  username: z.string().email('E-mail Apple ID inválido'),
+  password: z.string().min(1, 'App Password é obrigatória'),
 })
 
 const deleteSchema = z.object({
@@ -382,6 +383,92 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
   )
 }
 
+/* ── Popup de ajuda: como gerar App Password da Apple ── */
+function AppPasswordHelpDialog({ open, onClose }) {
+  const steps = [
+    {
+      number: 1,
+      text: 'Acesse',
+      link: { label: 'appleid.apple.com', href: 'https://appleid.apple.com/account/manage' },
+      detail: 'e faça login com seu Apple ID.',
+    },
+    {
+      number: 2,
+      text: 'Clique em',
+      highlight: 'Início da sessão e segurança',
+      detail: 'no menu lateral.',
+    },
+    {
+      number: 3,
+      text: 'Role até',
+      highlight: 'Senhas específicas de apps',
+      detail: 'e clique no botão de adicionar (+).',
+    },
+    {
+      number: 4,
+      text: 'Dê um nome para a senha',
+      detail: '(ex: "Vitalis") e clique em Criar.',
+    },
+    {
+      number: 5,
+      text: 'Copie a senha gerada',
+      detail: '(formato xxxx-xxxx-xxxx-xxxx) e cole no campo App Password abaixo.',
+    },
+  ]
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AppleIcon sx={{ fontSize: 22, color: 'text.primary' }} />
+        Como gerar uma App Password
+      </DialogTitle>
+      <DialogContent sx={{ pt: 0 }}>
+        <Alert severity="info" sx={{ mb: 2.5, fontSize: '0.8rem' }}>
+          A App Password é necessária porque a Apple não permite usar a senha principal do seu Apple ID em apps de terceiros.
+        </Alert>
+        <Stack spacing={2}>
+          {steps.map((step) => (
+            <Stack key={step.number} direction="row" spacing={1.5} alignItems="flex-start">
+              <Box
+                sx={{
+                  minWidth: 24, height: 24, borderRadius: '50%',
+                  bgcolor: 'primary.main', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.72rem', fontWeight: 700, flexShrink: 0, mt: '1px',
+                }}
+              >
+                {step.number}
+              </Box>
+              <Typography variant="body2" color="text.secondary" lineHeight={1.6}>
+                {step.text}{' '}
+                {step.link && (
+                  <a
+                    href={step.link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'inherit', fontWeight: 600 }}
+                  >
+                    {step.link.label} <OpenInNewIcon sx={{ fontSize: 11, verticalAlign: 'middle' }} />
+                  </a>
+                )}
+                {step.highlight && (
+                  <Box component="span" fontWeight={700} color="text.primary">
+                    {step.highlight}
+                  </Box>
+                )}
+                {' '}{step.detail}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <Button variant="contained" onClick={onClose}>Entendi</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 function TabIntegracoes() {
   const queryClient = useQueryClient()
 
@@ -448,15 +535,13 @@ function TabIntegracoes() {
     formState: { errors: eApple },
   } = useForm({ resolver: zodResolver(appleSchema) })
 
-  const [appleError, setAppleError]     = useState('')
-  const [appleSuccess, setAppleSuccess] = useState(false)
-  const [showApplePwd, setShowApplePwd] = useState(false)
+  const [appleError, setAppleError]         = useState('')
+  const [appleSuccess, setAppleSuccess]     = useState(false)
+  const [showApplePwd, setShowApplePwd]     = useState(false)
+  const [appleHelpOpen, setAppleHelpOpen]   = useState(false)
 
   const appleConnectMutation = useMutation({
-    mutationFn: (data) => integrationsApi.appleConnect({
-      ...data,
-      caldav_url: data.caldav_url || 'https://caldav.icloud.com',
-    }).then(r => r.data),
+    mutationFn: (data) => integrationsApi.appleConnect(data).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries(['integrations'])
       resetApple()
@@ -530,28 +615,31 @@ function TabIntegracoes() {
       >
         <form onSubmit={hApple(d => appleConnectMutation.mutate(d))}>
           <Stack spacing={3}>
-            <Alert severity="info">
-              Use uma <strong>App Password</strong> gerada em{' '}
-              <a
-                href="https://appleid.apple.com/account/manage"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: 'inherit' }}
+            <Alert
+              severity="info"
+              action={
+                <IconButton
+                  size="small"
+                  color="inherit"
+                  onClick={() => setAppleHelpOpen(true)}
+                  title="Como gerar uma App Password"
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                </IconButton>
+              }
+            >
+              Use uma <strong>App Password</strong> gerada no seu Apple ID —{' '}
+              <Box
+                component="span"
+                onClick={() => setAppleHelpOpen(true)}
+                sx={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
               >
-                appleid.apple.com
-              </a>
-              {' '}— nunca use a senha principal do seu Apple ID.
+                veja como gerar
+              </Box>
+              .
             </Alert>
 
             <Stack spacing={2}>
-              <TextField
-                label="URL CalDAV (opcional)"
-                fullWidth
-                placeholder="https://caldav.icloud.com"
-                {...rApple('caldav_url')}
-                error={!!eApple.caldav_url}
-                helperText={eApple.caldav_url?.message || 'Deixe em branco para usar o iCloud padrão'}
-              />
               <TextField
                 label="Apple ID (e-mail)"
                 fullWidth
@@ -563,6 +651,7 @@ function TabIntegracoes() {
                 label="App Password"
                 type={showApplePwd ? 'text' : 'password'}
                 fullWidth
+                placeholder="xxxx-xxxx-xxxx-xxxx"
                 {...rApple('password')}
                 error={!!eApple.password}
                 helperText={eApple.password?.message}
@@ -596,6 +685,8 @@ function TabIntegracoes() {
           </Stack>
         </form>
       </IntegrationCard>
+
+      <AppPasswordHelpDialog open={appleHelpOpen} onClose={() => setAppleHelpOpen(false)} />
     </Box>
   )
 }
