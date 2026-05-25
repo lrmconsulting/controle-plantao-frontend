@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   Box, Typography, IconButton, Button, Chip, Skeleton,
-  useTheme, useMediaQuery, Divider, CircularProgress,
+  useTheme, useMediaQuery, CircularProgress,
   Tabs, Tab, Alert,
 } from '@mui/material'
 import ChevronLeftIcon          from '@mui/icons-material/ChevronLeft'
@@ -579,36 +579,19 @@ export default function Financeiro() {
         </Box>
       </Box>
 
-      {/* ── Conteúdo principal ── */}
-      <Box sx={{ px: { xs: 2, md: 3 } }}>
-        {isMobile ? (
-          /* ── Mobile: empilhado ── */
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {consolidadoBlock}
-            <Divider />
-            {faturasBlock}
-            <Divider />
-            {previsaoBlock}
-          </Box>
-        ) : (
-          /* ── Desktop: grade 2+2 ── */
-          <Box sx={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gridTemplateRows: 'auto auto',
-            columnGap: 3,
-            rowGap: 3,
-          }}>
-            {/* Linha 1: Consolidado | Faturas */}
-            <Box>{consolidadoBlock}</Box>
-            <Box>{faturasBlock}</Box>
-            {/* Linha 2: Previsão (full width) */}
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <Divider sx={{ mb: 3 }} />
-              {previsaoBlock}
-            </Box>
-          </Box>
-        )}
+      {/* ── Conteúdo principal: 3 colunas desktop, empilhado mobile ── */}
+      <Box
+        sx={{
+          px: { xs: 2, md: 3 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, 1fr)' },
+          gap: { xs: 3, lg: 2.5 },
+          alignItems: 'start',
+        }}
+      >
+        {consolidadoBlock}
+        {faturasBlock}
+        {previsaoBlock}
       </Box>
 
       <InvoiceDrawer

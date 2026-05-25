@@ -1,15 +1,21 @@
 import {
-  Drawer, Box, Typography, Button, IconButton, Chip, Divider, CircularProgress,
+  Drawer, Box, Typography, Button, IconButton, Chip, Divider,
+  CircularProgress, Tooltip, Alert,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import EditIcon from '@mui/icons-material/Edit'
+import CloseIcon         from '@mui/icons-material/Close'
+import EditIcon          from '@mui/icons-material/Edit'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
-import BusinessIcon from '@mui/icons-material/Business'
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
-import SyncIcon from '@mui/icons-material/Sync'
+import AccessTimeIcon    from '@mui/icons-material/AccessTime'
+import BusinessIcon      from '@mui/icons-material/Business'
+import AttachMoneyIcon   from '@mui/icons-material/AttachMoney'
+import SyncIcon          from '@mui/icons-material/Sync'
+import CheckCircleIcon   from '@mui/icons-material/CheckCircle'
+import UndoIcon          from '@mui/icons-material/Undo'
+import BlockIcon         from '@mui/icons-material/Block'
+import LinkIcon          from '@mui/icons-material/Link'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { shiftsApi } from '@/api/shifts'
 
 const STATUS_CONFIG = {
@@ -50,6 +56,8 @@ function DetailRow({ icon, label, value }) {
 
 export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
   const queryClient = useQueryClient()
+  const [deleteError, setDeleteError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   /** Invalida shifts E monthly-summary do mesmo mês */
   function invalidateMonth(isoDatetime) {
@@ -63,7 +71,13 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
     mutationFn: () => shiftsApi.remove(shift.id),
     onSuccess: () => {
       invalidateMonth(shift.start_datetime)
+      setConfirmDelete(false)
       onClose()
+    },
+    onError: (err) => {
+      const msg = err.response?.data?.detail || 'Erro ao excluir plantão.'
+      setDeleteError(msg)
+      setConfirmDelete(false)
     },
   })
 
@@ -194,61 +208,117 @@ export default function ShiftDetailDrawer({ open, onClose, shift, onEdit }) {
         )}
       </Box>
 
-      {/* Footer com ações de status + excluir */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {/* Ação principal: vincular unidade (eventos pendentes) */}
-        {shift.status === 'pending' && (
-          <Button variant="contained" fullWidth onClick={onEdit}>
-            Vincular a uma unidade
-          </Button>
+      {/* Footer */}
+      <Box sx={{ px: 3, pt: 2, pb: 2.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+
+        {/* Erro de exclusão */}
+        {deleteError && (
+          <Alert severity="error" onClose={() => setDeleteError('')} sx={{ py: 0.5, fontSize: '0.78rem' }}>
+            {deleteError}
+          </Alert>
         )}
 
-        {/* Ação principal de status */}
-        {shift.status === 'scheduled' && (
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={() => statusMutation.mutate('completed')}
-            disabled={statusMutation.isPending}
-          >
-            {statusMutation.isPending ? <CircularProgress size={18} color="inherit" /> : 'Marcar como Realizado'}
-          </Button>
-        )}
-        {shift.status === 'completed' && (
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={() => statusMutation.mutate('scheduled')}
-            disabled={statusMutation.isPending}
-          >
-            {statusMutation.isPending ? <CircularProgress size={18} color="inherit" /> : 'Reverter para Agendado'}
-          </Button>
-        )}
+        {/* Confirmação de exclusão */}
+        {confirmDelete ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant="caption" color="error" align="center" fontWeight={600}>
+              Confirmar exclusão permanente?
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                size="small"
+                fullWidth
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                startIcon={deleteMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <DeleteOutlineIcon />}
+              >
+                Excluir
+              </Button>
+            </Box>
+          </Box>
+        ) : (
+          <>
+            {/* Ação primária por status */}
+            {shift.status === 'pending' && (
+              <Button
+                variant="contained"
+                size="small"
+                fullWidth
+                startIcon={<LinkIcon />}
+                onClick={onEdit}
+              >
+                Vincular unidade
+              </Button>
+            )}
+            {shift.status === 'scheduled' && (
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                fullWidth
+                startIcon={statusMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <CheckCircleIcon />}
+                onClick={() => statusMutation.mutate('completed')}
+                disabled={statusMutation.isPending}
+              >
+                Marcar como realizado
+              </Button>
+            )}
+            {shift.status === 'completed' && (
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                startIcon={<UndoIcon />}
+                onClick={() => statusMutation.mutate('scheduled')}
+                disabled={statusMutation.isPending}
+              >
+                Reverter para agendado
+              </Button>
+            )}
 
-        {/* Ações secundárias */}
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          {shift.status !== 'cancelled' && (
-            <Button
-              variant="outlined"
-              color="warning"
-              sx={{ flex: 1 }}
-              onClick={() => statusMutation.mutate('cancelled')}
-              disabled={statusMutation.isPending}
-            >
-              Cancelar plantão
-            </Button>
-          )}
-          <Button
-            variant="outlined"
-            color="error"
-            sx={{ flex: 1 }}
-            startIcon={deleteMutation.isPending ? null : <DeleteOutlineIcon />}
-            onClick={() => deleteMutation.mutate()}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? <CircularProgress size={18} color="inherit" /> : 'Excluir'}
-          </Button>
-        </Box>
+            {/* Ações secundárias — linha compacta de ícones + texto */}
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+              <Tooltip title="Editar">
+                <IconButton size="small" onClick={onEdit} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '6px', px: 1.5 }}>
+                  <EditIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+
+              {shift.status !== 'cancelled' && (
+                <Tooltip title="Cancelar plantão">
+                  <IconButton
+                    size="small"
+                    onClick={() => statusMutation.mutate('cancelled')}
+                    disabled={statusMutation.isPending}
+                    sx={{ border: '1px solid', borderColor: 'warning.main', borderRadius: '6px', px: 1.5, color: 'warning.main' }}
+                  >
+                    <BlockIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              <Tooltip title="Excluir permanentemente">
+                <IconButton
+                  size="small"
+                  onClick={() => { setDeleteError(''); setConfirmDelete(true) }}
+                  sx={{ border: '1px solid', borderColor: 'error.main', borderRadius: '6px', px: 1.5, color: 'error.main' }}
+                >
+                  <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </>
+        )}
       </Box>
     </Drawer>
   )
