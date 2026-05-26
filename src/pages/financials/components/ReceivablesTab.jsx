@@ -1,16 +1,20 @@
 import { useState, Fragment } from 'react'
 import {
   Box, Typography, Button, Chip, Skeleton, Collapse,
-  IconButton, CircularProgress, Divider,
+  IconButton, CircularProgress, ToggleButtonGroup, ToggleButton,
 } from '@mui/material'
-import ExpandMoreIcon          from '@mui/icons-material/ExpandMore'
-import ExpandLessIcon          from '@mui/icons-material/ExpandLess'
-import PictureAsPdfIcon        from '@mui/icons-material/PictureAsPdf'
-import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
-import PendingActionsIcon      from '@mui/icons-material/PendingActions'
-import ChevronLeftIcon         from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon        from '@mui/icons-material/ChevronRight'
-import ReceiptLongIcon         from '@mui/icons-material/ReceiptLong'
+import ExpandMoreIcon              from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon              from '@mui/icons-material/ExpandLess'
+import PictureAsPdfIcon            from '@mui/icons-material/PictureAsPdf'
+import CheckCircleOutlinedIcon     from '@mui/icons-material/CheckCircleOutlined'
+import ChevronLeftIcon             from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon            from '@mui/icons-material/ChevronRight'
+import ReceiptLongIcon             from '@mui/icons-material/ReceiptLong'
+import AssignmentTurnedInIcon      from '@mui/icons-material/AssignmentTurnedIn'
+import AccountBalanceWalletIcon    from '@mui/icons-material/AccountBalanceWallet'
+import ViewColumnIcon              from '@mui/icons-material/ViewColumn'
+import FormatListBulletedIcon      from '@mui/icons-material/FormatListBulleted'
+import WarningAmberIcon            from '@mui/icons-material/WarningAmber'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invoicesApi, paymentsApi } from '@/api/financials'
 import InvoiceDrawer from './InvoiceDrawer'
@@ -50,7 +54,7 @@ function fmtDate(dateStr) {
 
 function fmtDatetime(isoStr) {
   if (!isoStr) return '—'
-  const dt = new Date(isoStr)
+  const dt  = new Date(isoStr)
   const d   = String(dt.getDate()).padStart(2, '0')
   const mo  = String(dt.getMonth() + 1).padStart(2, '0')
   const h   = String(dt.getHours()).padStart(2, '0')
@@ -63,8 +67,214 @@ function formatMonthKey(monthKey) {
   return `${MONTHS_PT[parseInt(m) - 1]} de ${year}`
 }
 
-/* ─── Pipeline de status ─── */
-const PIPELINE = [
+/* ════════════════════════════════════════════
+   PIPELINE VIEW — 3 colunas kanban
+═══════════════════════════════════════════ */
+
+/** Card compacto para o kanban */
+function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, confirmingId }) {
+  const canSetNF    = invoice.status === 'draft'
+  const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
+  const isConfirming = confirmingId === invoice.id
+  const isOverdue   = invoice.status === 'overdue'
+
+  return (
+    <Box sx={{
+      px: 1.75, py: 1.25,
+      borderBottom: last ? 'none' : '1px solid',
+      borderColor: 'divider',
+      '&:hover': { bgcolor: '#f8fafc' },
+      transition: 'background-color 0.15s',
+    }}>
+      {/* Linha principal */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="body2" fontWeight={700} noWrap sx={{ lineHeight: 1.3 }}>
+            {invoice.institution_detail?.name || '—'}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            {invoice.reference_month_display}
+          </Typography>
+        </Box>
+        <Typography variant="body2" fontWeight={700} color="primary.main"
+          sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0, lineHeight: 1.3 }}>
+          {currency(invoice.total_value)}
+        </Typography>
+      </Box>
+
+      {/* Linha de metadados */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: canSetNF || canConfirm ? 1 : 0 }}>
+        {invoice.nf_number && (
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+            NF {invoice.nf_number}
+          </Typography>
+        )}
+        {isOverdue && invoice.expected_payment_date && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+            <WarningAmberIcon sx={{ fontSize: '0.75rem', color: 'error.main' }} />
+            <Typography variant="caption" color="error.main" fontWeight={600} sx={{ fontSize: '0.65rem' }}>
+              Venc. {fmtDate(invoice.expected_payment_date)}
+            </Typography>
+          </Box>
+        )}
+        {!isOverdue && invoice.expected_payment_date && (
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+            Venc. {fmtDate(invoice.expected_payment_date)}
+          </Typography>
+        )}
+        {invoice.payment?.received_date && (
+          <Typography variant="caption" color="success.main" fontWeight={600} sx={{ fontSize: '0.65rem' }}>
+            ✓ {fmtDate(invoice.payment.received_date)}
+          </Typography>
+        )}
+      </Box>
+
+      {/* Ações */}
+      {(canSetNF || canConfirm) && (
+        <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end' }}>
+          {canSetNF && (
+            <Button size="small" variant="outlined"
+              onClick={() => onSetNF(invoice)}
+              sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
+              Registrar NF
+            </Button>
+          )}
+          {canConfirm && (
+            <Button size="small" variant="contained" color="success"
+              onClick={() => onConfirmPayment(invoice)}
+              disabled={isConfirming}
+              sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
+              {isConfirming
+                ? <CircularProgress size={12} color="inherit" />
+                : 'Confirmar recebimento'}
+            </Button>
+          )}
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/** Coluna do kanban */
+function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMessage, onSetNF, onConfirmPayment, confirmingId }) {
+  const total = invoices.reduce((s, inv) => s + parseFloat(inv.total_value || 0), 0)
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 180 }}>
+      {/* Header da coluna */}
+      <Box sx={{
+        px: 1.75, py: 1.25,
+        bgcolor: bgColor,
+        borderRadius: '8px 8px 0 0',
+        border: '1px solid', borderColor: 'divider',
+        borderBottom: 'none',
+        borderTop: `3px solid ${accentColor}`,
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+          <Box sx={{ color: accentColor, display: 'flex', '& svg': { fontSize: '1rem' } }}>{icon}</Box>
+          <Typography variant="body2" fontWeight={700} sx={{ flex: 1 }}>{title}</Typography>
+          <Chip
+            label={invoices.length}
+            size="small"
+            sx={{
+              height: 18, fontSize: '0.62rem', fontWeight: 700, borderRadius: '4px',
+              bgcolor: accentColor + '20', color: accentColor,
+            }}
+          />
+        </Box>
+        <Typography variant="body1" fontWeight={800} sx={{ color: accentColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+          {currency(total)}
+        </Typography>
+      </Box>
+
+      {/* Corpo */}
+      <Box sx={{
+        flex: 1,
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: '0 0 8px 8px',
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+      }}>
+        {invoices.length === 0 ? (
+          <Box sx={{ py: 3, px: 2, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>
+              {emptyMessage}
+            </Typography>
+          </Box>
+        ) : (
+          invoices.map((inv, idx) => (
+            <PipelineCard
+              key={inv.id}
+              invoice={inv}
+              last={idx === invoices.length - 1}
+              onSetNF={onSetNF}
+              onConfirmPayment={onConfirmPayment}
+              confirmingId={confirmingId}
+            />
+          ))
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+/** View pipeline completa */
+function PipelineView({ timeline, onSetNF, onConfirmPayment, confirmingId }) {
+  const allInvoices = (timeline || []).flatMap(g => g.invoices || [])
+
+  const draftInvoices  = allInvoices.filter(inv => inv.status === 'draft')
+  const issuedInvoices = allInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue')
+  const paidInvoices   = allInvoices.filter(inv => inv.status === 'paid')
+
+  return (
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+      gap: 2,
+      alignItems: 'start',
+    }}>
+      <PipelineColumn
+        title="Fatura gerada"
+        icon={<ReceiptLongIcon />}
+        accentColor="#64748b"
+        bgColor="#f8fafc"
+        invoices={draftInvoices}
+        emptyMessage="Nenhuma fatura aguardando emissão de NF"
+        onSetNF={onSetNF}
+        onConfirmPayment={onConfirmPayment}
+        confirmingId={confirmingId}
+      />
+      <PipelineColumn
+        title="NF emitida"
+        icon={<AssignmentTurnedInIcon />}
+        accentColor="#2563eb"
+        bgColor="#eff6ff"
+        invoices={issuedInvoices}
+        emptyMessage="Nenhuma NF aguardando confirmação de pagamento"
+        onSetNF={onSetNF}
+        onConfirmPayment={onConfirmPayment}
+        confirmingId={confirmingId}
+      />
+      <PipelineColumn
+        title="Valor recebido"
+        icon={<AccountBalanceWalletIcon />}
+        accentColor="#16a34a"
+        bgColor="#f0fdf4"
+        invoices={paidInvoices}
+        emptyMessage="Nenhum pagamento recebido neste período"
+        onSetNF={onSetNF}
+        onConfirmPayment={onConfirmPayment}
+        confirmingId={confirmingId}
+      />
+    </Box>
+  )
+}
+
+/* ════════════════════════════════════════════
+   TIMELINE VIEW — grupos por mês (existente)
+═══════════════════════════════════════════ */
+
+const PIPELINE_STEPS = [
   { key: 'draft',  label: 'Gerada' },
   { key: 'issued', label: 'NF emitida' },
   { key: 'paid',   label: 'Pago' },
@@ -83,36 +293,31 @@ function StatusPipeline({ status }) {
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-      {PIPELINE.map((step, idx) => (
+      {PIPELINE_STEPS.map((step, idx) => (
         <Fragment key={step.key}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', minWidth: 54 }}>
             <Box sx={{
               width: 12, height: 12, borderRadius: '50%', mt: '2px',
               bgcolor: idx < currentStep ? 'success.main'
-                : idx === currentStep
-                  ? isOverdue ? 'error.main' : 'primary.main'
-                  : 'transparent',
+                : idx === currentStep ? (isOverdue ? 'error.main' : 'primary.main')
+                : 'transparent',
               border: '2px solid',
               borderColor: idx < currentStep ? 'success.main'
-                : idx === currentStep
-                  ? isOverdue ? 'error.main' : 'primary.main'
-                  : '#cbd5e1',
+                : idx === currentStep ? (isOverdue ? 'error.main' : 'primary.main')
+                : '#cbd5e1',
             }} />
             <Typography sx={{
               fontSize: '0.56rem',
               fontWeight: idx === currentStep ? 700 : 400,
               color: idx < currentStep ? 'success.main'
-                : idx === currentStep
-                  ? isOverdue ? 'error.main' : 'primary.main'
-                  : 'text.disabled',
-              whiteSpace: 'nowrap',
-              textAlign: 'center',
-              lineHeight: 1.2,
+                : idx === currentStep ? (isOverdue ? 'error.main' : 'primary.main')
+                : 'text.disabled',
+              whiteSpace: 'nowrap', textAlign: 'center', lineHeight: 1.2,
             }}>
               {step.label}
             </Typography>
           </Box>
-          {idx < PIPELINE.length - 1 && (
+          {idx < PIPELINE_STEPS.length - 1 && (
             <Box sx={{
               flex: 1, height: 2, mt: '7px', mx: '3px',
               bgcolor: idx < currentStep ? 'success.main' : '#e2e8f0',
@@ -125,35 +330,29 @@ function StatusPipeline({ status }) {
   )
 }
 
-/* ─── Card de fatura individual ─── */
 function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
-  const [expanded, setExpanded] = useState(false)
-  const status  = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
-  const accent  = STATUS_ACCENT[invoice.status] || '#94a3b8'
-  const canSetNF   = invoice.status !== 'cancelled'
-  const canConfirm = invoice.status === 'issued' || invoice.status === 'overdue'
-  const shifts     = invoice.invoice_shifts || []
+  const [expanded,   setExpanded]   = useState(false)
+  const status      = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
+  const accent      = STATUS_ACCENT[invoice.status] || '#94a3b8'
+  const canSetNF    = invoice.status !== 'cancelled'
+  const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
+  const shifts      = invoice.invoice_shifts || []
   const isConfirming = confirmingId === invoice.id
 
   return (
     <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
-      {/* Corpo */}
       <Box sx={{ borderLeft: `4px solid ${accent}`, px: 2, py: 1.5 }}>
-        {/* Linha 1: nome + chip + pipeline */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             <Typography variant="body2" fontWeight={700} noWrap>
               {invoice.institution_detail?.name || '—'}
             </Typography>
-            <Chip
-              label={status.label} color={status.color} size="small"
-              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, borderRadius: '4px' }}
-            />
+            <Chip label={status.label} color={status.color} size="small"
+              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, borderRadius: '4px' }} />
           </Box>
           <StatusPipeline status={invoice.status} />
         </Box>
 
-        {/* Linha 2: métricas */}
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="caption" color="text.secondary" display="block">Valor</Typography>
@@ -197,53 +396,42 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
         </Box>
       </Box>
 
-      {/* Barra de ações */}
       <Box sx={{
         px: 2, py: '8px', bgcolor: '#f8fafc',
         borderTop: '1px solid', borderColor: 'divider',
         display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
       }}>
         {shifts.length > 0 && (
-          <Button
-            size="small" variant="text" color="inherit"
+          <Button size="small" variant="text" color="inherit"
             startIcon={expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
             onClick={() => setExpanded(e => !e)}
-            sx={{ fontSize: '0.7rem', py: 0.25, color: 'text.secondary', '&:hover': { bgcolor: 'transparent', color: 'text.primary' } }}
-          >
+            sx={{ fontSize: '0.7rem', py: 0.25, color: 'text.secondary' }}>
             {shifts.length} plant{shifts.length !== 1 ? 'ões' : 'ão'}
           </Button>
         )}
         <Box sx={{ flex: 1 }} />
         {canSetNF && (
-          <Button
-            size="small" variant="outlined"
-            onClick={() => onSetNF(invoice)}
-            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}
-          >
+          <Button size="small" variant="outlined" onClick={() => onSetNF(invoice)}
+            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
             Registrar NF
           </Button>
         )}
         {canConfirm && (
-          <Button
-            size="small" variant="contained" color="success"
+          <Button size="small" variant="contained" color="success"
             onClick={() => onConfirmPayment(invoice)}
             disabled={isConfirming}
             startIcon={isConfirming ? null : <CheckCircleOutlinedIcon sx={{ fontSize: '0.9rem !important' }} />}
-            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}
-          >
+            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
             {isConfirming ? <CircularProgress size={14} color="inherit" /> : 'Confirmar recebimento'}
           </Button>
         )}
       </Box>
 
-      {/* Plantões expandíveis */}
       <Collapse in={expanded}>
         <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
-          {/* Cabeçalho da tabela */}
           <Box sx={{
             display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
-            alignItems: 'center', gap: 1.5,
-            px: 2, py: '6px', bgcolor: '#fafafa',
+            alignItems: 'center', gap: 1.5, px: 2, py: '6px', bgcolor: '#fafafa',
             borderBottom: '1px solid', borderColor: 'divider',
           }}>
             {['', 'Data / Horário', 'Unidade', 'Valor'].map((h, i) => (
@@ -254,31 +442,21 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
             ))}
           </Box>
           {shifts.map((is, idx) => {
-            const endTime = is.shift_end_date
+            const endTime  = is.shift_end_date
               ? new Date(is.shift_end_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               : null
-            const startFmt = fmtDatetime(is.shift_date)
-
             return (
               <Box key={idx} sx={{
                 display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
-                alignItems: 'center', gap: 1.5,
-                px: 2, py: '8px',
+                alignItems: 'center', gap: 1.5, px: 2, py: '8px',
                 borderBottom: idx < shifts.length - 1 ? '1px solid' : 'none',
-                borderColor: 'divider',
-                '&:hover': { bgcolor: '#f8fafc' },
+                borderColor: 'divider', '&:hover': { bgcolor: '#f8fafc' },
               }}>
-                {/* Dot de cor */}
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: is.unit_color || '#94a3b8', flexShrink: 0 }} />
-                {/* Data/hora */}
                 <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
-                  {startFmt}{endTime ? ` – ${endTime}` : ''}
+                  {fmtDatetime(is.shift_date)}{endTime ? ` – ${endTime}` : ''}
                 </Typography>
-                {/* Unidade */}
-                <Typography variant="caption" noWrap sx={{ color: 'text.primary' }}>
-                  {is.unit_name}
-                </Typography>
-                {/* Valor */}
+                <Typography variant="caption" noWrap>{is.unit_name}</Typography>
                 <Typography variant="caption" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', flexShrink: 0 }}>
                   {currency(is.value)}
                 </Typography>
@@ -291,7 +469,6 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
   )
 }
 
-/* ─── Grupo de mês ─── */
 function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
   const billed   = parseFloat(group.total_billed   || 0)
   const received = parseFloat(group.total_received || 0)
@@ -299,7 +476,6 @@ function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
 
   return (
     <Box sx={{ mb: 3.5 }}>
-      {/* Cabeçalho do mês */}
       <Box sx={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
         pb: 1, mb: 1.5, borderBottom: '2px solid', borderColor: 'divider',
@@ -309,50 +485,34 @@ function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
           {formatMonthKey(group.month)}
         </Typography>
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
-              Faturado
-            </Typography>
-            <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-              {currency(billed)}
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
-              Recebido
-            </Typography>
-            <Typography variant="body2" fontWeight={700} color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-              {currency(received)}
-            </Typography>
-          </Box>
-          {pending > 0 && (
-            <Box sx={{ textAlign: 'right' }}>
+          {[
+            { label: 'Faturado', value: billed,   color: 'primary.main' },
+            { label: 'Recebido', value: received, color: 'success.main' },
+            ...(pending > 0 ? [{ label: 'Pendente', value: pending, color: 'warning.dark' }] : []),
+          ].map(({ label, value, color }) => (
+            <Box key={label} sx={{ textAlign: 'right' }}>
               <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
-                Pendente
+                {label}
               </Typography>
-              <Typography variant="body2" fontWeight={700} color="warning.dark" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                {currency(pending)}
+              <Typography variant="body2" fontWeight={700} sx={{ color, fontVariantNumeric: 'tabular-nums' }}>
+                {currency(value)}
               </Typography>
             </Box>
-          )}
+          ))}
         </Box>
       </Box>
 
-      {/* Faturas */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {(group.invoices || []).map(inv => (
-          <InvoiceCard
-            key={inv.id} invoice={inv}
-            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment}
-            confirmingId={confirmingId}
-          />
+          <InvoiceCard key={inv.id} invoice={inv}
+            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment} confirmingId={confirmingId} />
         ))}
       </Box>
     </Box>
   )
 }
 
-/* ─── Exportação PDF (print window) ─── */
+/* ─── PDF export ─── */
 function generatePrintHTML(timeline) {
   const now     = new Date()
   const dateStr = now.toLocaleDateString('pt-BR')
@@ -363,25 +523,21 @@ function generatePrintHTML(timeline) {
   const totalReceived = (timeline || []).reduce((s, g) => s + parseFloat(g.total_received || 0), 0)
   const totalPending  = (timeline || []).reduce((s, g) => s + parseFloat(g.total_pending  || 0), 0)
 
+  const statusColors = { paid: '#16a34a', overdue: '#dc2626', issued: '#2563eb', draft: '#64748b', cancelled: '#64748b' }
+  const statusLabels = { paid: 'Pago', overdue: 'Em atraso', issued: 'NF emitida', draft: 'Rascunho', cancelled: 'Cancelado' }
+
   const rows = (timeline || []).flatMap(group =>
-    (group.invoices || []).map(inv => {
-      const statusColors = { paid: '#16a34a', overdue: '#dc2626', issued: '#2563eb', draft: '#64748b', cancelled: '#64748b' }
-      const statusLabels = { paid: 'Pago', overdue: 'Em atraso', issued: 'NF emitida', draft: 'Rascunho', cancelled: 'Cancelado' }
-      const color  = statusColors[inv.status] || '#64748b'
-      const label  = statusLabels[inv.status] || inv.status
-      const val    = fmt(parseFloat(inv.total_value || 0))
-      return `
-        <tr>
-          <td style="text-transform:capitalize">${formatMonthKey(group.month)}</td>
-          <td><strong>${inv.institution_detail?.name || '—'}</strong></td>
-          <td style="color:${color};font-weight:600">${label}</td>
-          <td>${inv.nf_number || '—'}</td>
-          <td style="text-align:center">${inv.shift_count}</td>
-          <td style="text-align:right;font-weight:700">${val}</td>
-          <td>${inv.expected_payment_date ? fmtDate(inv.expected_payment_date) : '—'}</td>
-          <td>${inv.payment?.received_date ? fmtDate(inv.payment.received_date) : '—'}</td>
-        </tr>`
-    })
+    (group.invoices || []).map(inv => `
+      <tr>
+        <td style="text-transform:capitalize">${formatMonthKey(group.month)}</td>
+        <td><strong>${inv.institution_detail?.name || '—'}</strong></td>
+        <td style="color:${statusColors[inv.status] || '#64748b'};font-weight:600">${statusLabels[inv.status] || inv.status}</td>
+        <td>${inv.nf_number || '—'}</td>
+        <td style="text-align:center">${inv.shift_count}</td>
+        <td style="text-align:right;font-weight:700">${fmt(parseFloat(inv.total_value || 0))}</td>
+        <td>${inv.expected_payment_date ? fmtDate(inv.expected_payment_date) : '—'}</td>
+        <td>${inv.payment?.received_date ? fmtDate(inv.payment.received_date) : '—'}</td>
+      </tr>`)
   ).join('')
 
   return `<!DOCTYPE html>
@@ -431,8 +587,9 @@ function generatePrintHTML(timeline) {
 
 /* ════════════════════════ COMPONENTE PRINCIPAL ════════════════════════ */
 export default function ReceivablesTab() {
-  const queryClient = useQueryClient()
+  const queryClient  = useQueryClient()
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [viewMode,     setViewMode]     = useState('pipeline')   // 'pipeline' | 'timeline'
   const [drawerOpen,    setDrawerOpen]   = useState(false)
   const [drawerInvoice, setDrawerInvoice] = useState(null)
   const [confirmingId,  setConfirmingId]  = useState(null)
@@ -454,10 +611,7 @@ export default function ReceivablesTab() {
     onError: () => setConfirmingId(null),
   })
 
-  function openSetNF(inv) {
-    setDrawerInvoice(inv)
-    setDrawerOpen(true)
-  }
+  function openSetNF(inv) { setDrawerInvoice(inv); setDrawerOpen(true) }
 
   function handleConfirmPayment(inv) {
     if (inv.payment?.id) {
@@ -480,15 +634,40 @@ export default function ReceivablesTab() {
 
   return (
     <Box>
-      {/* Header */}
+      {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2.5, gap: 2, flexWrap: 'wrap' }}>
         <Box>
-          <Typography variant="subtitle1" fontWeight={700}>Histórico de recebíveis</Typography>
+          <Typography variant="subtitle1" fontWeight={700}>Recebíveis</Typography>
           <Typography variant="caption" color="text.secondary">
-            Acompanhe o status de cada fatura e confirme recebimentos
+            Acompanhe o pipeline de faturamento e confirme recebimentos
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          {/* Toggle de visualização */}
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, v) => { if (v) setViewMode(v) }}
+            size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                py: 0.5, px: 1.25, fontSize: '0.72rem', fontWeight: 600,
+                border: '1px solid', borderColor: 'divider',
+                '&.Mui-selected': { bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } },
+              },
+            }}
+          >
+            <ToggleButton value="pipeline">
+              <ViewColumnIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />
+              Pipeline
+            </ToggleButton>
+            <ToggleButton value="timeline">
+              <FormatListBulletedIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />
+              Timeline
+            </ToggleButton>
+          </ToggleButtonGroup>
+
           {/* Seletor de ano */}
           <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: '6px' }}>
             <IconButton size="small" onClick={() => setSelectedYear(y => y - 1)}>
@@ -502,47 +681,45 @@ export default function ReceivablesTab() {
               <ChevronRightIcon fontSize="small" />
             </IconButton>
           </Box>
-          <Button
-            variant="outlined" size="small"
+
+          <Button variant="outlined" size="small"
             startIcon={<PictureAsPdfIcon fontSize="small" />}
             onClick={handleExport}
             disabled={!timeline?.length}
-            sx={{ borderRadius: '6px', fontSize: '0.72rem' }}
-          >
+            sx={{ borderRadius: '6px', fontSize: '0.72rem' }}>
             Exportar PDF
           </Button>
         </Box>
       </Box>
 
-      {/* Cards de resumo anual */}
-      {!isLoading && timeline?.length > 0 && (
+      {/* ── Cards de resumo anual ── */}
+      {!isLoading && (timeline?.length ?? 0) > 0 && (
         <Box sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' },
-          gap: 1.5, mb: 3,
+          gap: 1.5, mb: 2.5,
         }}>
           {[
-            { label: 'Total faturado', value: currency(totalBilled),   color: 'primary.main', accent: '#0d9488' },
-            { label: 'Total recebido', value: currency(totalReceived), color: 'success.main', accent: '#10b981' },
-            {
-              label: 'Total pendente',
-              value: currency(totalPending),
-              color: totalPending > 0 ? 'warning.dark' : 'text.secondary',
-              accent: totalPending > 0 ? '#f59e0b' : undefined,
-            },
+            { label: 'Fatura gerada',   value: currency(totalBilled),   color: '#64748b', accent: '#64748b',
+              icon: <ReceiptLongIcon sx={{ fontSize: '0.9rem' }} /> },
+            { label: 'NF emitida',      value: currency(totalPending),  color: '#2563eb', accent: '#2563eb',
+              icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.9rem' }} /> },
+            { label: 'Valor recebido',  value: currency(totalReceived), color: '#16a34a', accent: '#10b981',
+              icon: <AccountBalanceWalletIcon sx={{ fontSize: '0.9rem' }} /> },
           ].map(card => (
             <Box key={card.label} sx={{
-              p: '12px 16px',
+              p: '10px 14px',
               border: '1px solid', borderColor: 'divider', borderRadius: '8px',
-              borderTop: card.accent ? `3px solid ${card.accent}` : undefined,
+              borderTop: `3px solid ${card.accent}`,
               bgcolor: 'background.paper',
+              display: 'flex', flexDirection: 'column', gap: 0.25,
             }}>
-              <Typography sx={{
-                fontSize: '0.6rem', fontWeight: 700, color: 'text.disabled',
-                textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5,
-              }}>
-                {card.label}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                <Box sx={{ color: card.accent }}>{card.icon}</Box>
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {card.label}
+                </Typography>
+              </Box>
               <Typography fontWeight={700} sx={{ color: card.color, fontVariantNumeric: 'tabular-nums' }}>
                 {card.value}
               </Typography>
@@ -551,14 +728,14 @@ export default function ReceivablesTab() {
         </Box>
       )}
 
-      {/* Loading */}
+      {/* ── Loading ── */}
       {isLoading && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {[1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={130} />)}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+          {[1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={240} />)}
         </Box>
       )}
 
-      {/* Empty state */}
+      {/* ── Empty state ── */}
       {!isLoading && (!timeline || timeline.length === 0) && (
         <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: '8px' }}>
           <ReceiptLongIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
@@ -571,18 +748,25 @@ export default function ReceivablesTab() {
         </Box>
       )}
 
-      {/* Timeline */}
-      {!isLoading && (timeline || []).map(group => (
-        <MonthGroup
-          key={group.month}
-          group={group}
-          onSetNF={openSetNF}
-          onConfirmPayment={handleConfirmPayment}
-          confirmingId={confirmingId}
-        />
-      ))}
+      {/* ── Conteúdo ── */}
+      {!isLoading && (timeline?.length ?? 0) > 0 && (
+        viewMode === 'pipeline' ? (
+          <PipelineView
+            timeline={timeline}
+            onSetNF={openSetNF}
+            onConfirmPayment={handleConfirmPayment}
+            confirmingId={confirmingId}
+          />
+        ) : (
+          <Box>
+            {(timeline || []).map(group => (
+              <MonthGroup key={group.month} group={group}
+                onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment} confirmingId={confirmingId} />
+            ))}
+          </Box>
+        )
+      )}
 
-      {/* Drawer para Registrar NF */}
       <InvoiceDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
