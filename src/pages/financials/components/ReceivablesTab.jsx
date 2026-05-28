@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   Box, Typography, Button, Chip, Skeleton, Collapse,
   IconButton, CircularProgress, ToggleButtonGroup, ToggleButton,
@@ -593,6 +593,10 @@ export default function ReceivablesTab() {
   const [drawerOpen,    setDrawerOpen]   = useState(false)
   const [drawerInvoice, setDrawerInvoice] = useState(null)
   const [confirmingId,  setConfirmingId]  = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState(null)   // null = todos os meses
+
+  // Resetar mês selecionado ao trocar o ano
+  useEffect(() => { setSelectedMonth(null) }, [selectedYear])
 
   const { data: timeline, isLoading } = useQuery({
     queryKey: ['invoices-timeline', selectedYear],
@@ -631,6 +635,14 @@ export default function ReceivablesTab() {
   const totalBilled   = (timeline || []).reduce((s, g) => s + parseFloat(g.total_billed   || 0), 0)
   const totalReceived = (timeline || []).reduce((s, g) => s + parseFloat(g.total_received || 0), 0)
   const totalPending  = (timeline || []).reduce((s, g) => s + parseFloat(g.total_pending  || 0), 0)
+
+  // Meses disponíveis para o filtro
+  const availableMonths = (timeline || []).map(g => g.month)
+
+  // Timeline filtrada pelo mês selecionado
+  const filteredTimeline = selectedMonth
+    ? (timeline || []).filter(g => g.month === selectedMonth)
+    : (timeline || [])
 
   return (
     <Box>
@@ -728,6 +740,42 @@ export default function ReceivablesTab() {
         </Box>
       )}
 
+      {/* ── Filtro de mês ── */}
+      {!isLoading && availableMonths.length > 1 && (
+        <Box sx={{
+          display: 'flex', gap: 0.75, mb: 2,
+          overflowX: 'auto', pb: 0.5,
+          '&::-webkit-scrollbar': { height: 4 },
+          '&::-webkit-scrollbar-thumb': { borderRadius: 2, bgcolor: 'action.hover' },
+        }}>
+          <Chip
+            label="Todos"
+            size="small"
+            onClick={() => setSelectedMonth(null)}
+            variant={selectedMonth === null ? 'filled' : 'outlined'}
+            color={selectedMonth === null ? 'primary' : 'default'}
+            sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }}
+          />
+          {availableMonths.map(mk => {
+            const [y, m] = mk.split('-')
+            const abbr   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(m) - 1]
+            const label  = `${abbr}/${y.slice(2)}`
+            const isSelected = selectedMonth === mk
+            return (
+              <Chip
+                key={mk}
+                label={label}
+                size="small"
+                onClick={() => setSelectedMonth(isSelected ? null : mk)}
+                variant={isSelected ? 'filled' : 'outlined'}
+                color={isSelected ? 'primary' : 'default'}
+                sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }}
+              />
+            )
+          })}
+        </Box>
+      )}
+
       {/* ── Loading ── */}
       {isLoading && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
@@ -752,14 +800,14 @@ export default function ReceivablesTab() {
       {!isLoading && (timeline?.length ?? 0) > 0 && (
         viewMode === 'pipeline' ? (
           <PipelineView
-            timeline={timeline}
+            timeline={filteredTimeline}
             onSetNF={openSetNF}
             onConfirmPayment={handleConfirmPayment}
             confirmingId={confirmingId}
           />
         ) : (
           <Box>
-            {(timeline || []).map(group => (
+            {filteredTimeline.map(group => (
               <MonthGroup key={group.month} group={group}
                 onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment} confirmingId={confirmingId} />
             ))}
