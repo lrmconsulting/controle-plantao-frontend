@@ -172,7 +172,7 @@ function DayDrawer({ open, onClose, date, shifts, onShiftClick, onCreateShift })
           <Typography variant="caption" color="text.secondary">
             {sorted.length === 0
               ? 'Nenhum plantão'
-              : `${sorted.length} plantão${sorted.length !== 1 ? 'ões' : ''}`}
+              : `${sorted.length} plant${sorted.length !== 1 ? 'ões' : 'ão'}`}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small"><CloseIcon fontSize="small" /></IconButton>
@@ -534,7 +534,7 @@ export default function Agenda() {
       {view === 'month' && activeShifts.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            <strong>{activeShifts.length}</strong> plantão{activeShifts.length !== 1 ? 'ões' : ''} em {MONTHS_PT[month]}
+            <strong>{activeShifts.length}</strong> agend{activeShifts.length !== 1 ? 'as' : 'a'} em {MONTHS_PT[month]}
           </Typography>
           {totalValue > 0 && (
             <>
