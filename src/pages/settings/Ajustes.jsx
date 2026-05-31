@@ -8,7 +8,7 @@ import {
   TextField, Button, Divider, Alert, CircularProgress,
   Switch, FormControlLabel, Stack, Chip, IconButton,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-  Slider, InputAdornment,
+  Slider, InputAdornment, Snackbar,
 } from '@mui/material'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -288,7 +288,7 @@ function TabPerfil() {
 /* ══════════════════════════════════════════
    ABA 2 — INTEGRAÇÕES
 ══════════════════════════════════════════ */
-function IntegrationCard({ label, icon, description, integration, onDisconnect, onSync, children }) {
+function IntegrationCard({ label, icon, description, integration, onDisconnect, onSync, isSyncing, children }) {
   const isActive = integration?.status === 'active'
 
   return (
@@ -345,11 +345,16 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
             <Button
               size="small"
               variant="outlined"
-              startIcon={<SyncIcon fontSize="small" />}
+              startIcon={
+                isSyncing
+                  ? <CircularProgress size={14} color="inherit" />
+                  : <SyncIcon fontSize="small" sx={{ transition: 'transform 0.3s', ...(isSyncing && { animation: 'spin 1s linear infinite' }) }} />
+              }
               onClick={onSync}
+              disabled={isSyncing}
               sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}
             >
-              Sincronizar
+              {isSyncing ? 'Sincronizando…' : 'Sincronizar'}
             </Button>
             <Button
               size="small"
@@ -561,9 +566,19 @@ function TabIntegracoes() {
   })
 
   /* Sync */
+  const [syncSnack, setSyncSnack] = useState(null)  // { severity, message }
+
   const syncMutation = useMutation({
     mutationFn: () => integrationsApi.sync(),
-    onSuccess: () => queryClient.invalidateQueries(['integrations']),
+    onMutate:  () => setSyncSnack({ severity: 'info',    message: 'Sincronizando calendário…' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['integrations'])
+      queryClient.invalidateQueries(['shifts'])
+      setSyncSnack({ severity: 'success', message: 'Calendário sincronizado com sucesso!' })
+    },
+    onError: (err) => {
+      setSyncSnack({ severity: 'error', message: err.response?.data?.detail || 'Erro ao sincronizar. Tente novamente.' })
+    },
   })
 
   if (isLoading) {
@@ -585,6 +600,7 @@ function TabIntegracoes() {
         integration={googleIntegration}
         onDisconnect={() => disconnectMutation.mutate('google')}
         onSync={() => syncMutation.mutate()}
+        isSyncing={syncMutation.isPending}
       >
         <Stack spacing={2.5}>
           <Typography variant="body2" color="text.secondary">
@@ -612,6 +628,7 @@ function TabIntegracoes() {
         integration={appleIntegration}
         onDisconnect={() => disconnectMutation.mutate('apple')}
         onSync={() => syncMutation.mutate()}
+        isSyncing={syncMutation.isPending}
       >
         <form onSubmit={hApple(d => appleConnectMutation.mutate(d))}>
           <Stack spacing={3}>
@@ -687,6 +704,23 @@ function TabIntegracoes() {
       </IntegrationCard>
 
       <AppPasswordHelpDialog open={appleHelpOpen} onClose={() => setAppleHelpOpen(false)} />
+
+      {/* Snackbar de feedback da sincronização */}
+      <Snackbar
+        open={!!syncSnack}
+        autoHideDuration={syncSnack?.severity === 'info' ? null : 4000}
+        onClose={() => setSyncSnack(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={syncSnack?.severity || 'info'}
+          onClose={() => setSyncSnack(null)}
+          sx={{ width: '100%', boxShadow: 3 }}
+          icon={syncSnack?.severity === 'info' ? <CircularProgress size={18} color="inherit" /> : undefined}
+        >
+          {syncSnack?.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
