@@ -1,5 +1,5 @@
 import {
-  Card, CardContent, Box, Typography, IconButton, Chip,
+  Box, Typography, IconButton, Chip,
   Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
@@ -11,9 +11,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { institutionsApi } from '@/api/institutions'
 
 const PAYMENT_REF_LABELS = {
-  last_day:       'últ. dia do mês',
-  issue_date:     'emissão da NF',
-  first_day_next: '1º dia do mês seg.',
+  last_day:       'Últ. dia do mês',
+  issue_date:     'Emissão da NF',
+  first_day_next: '1º mês seguinte',   // encurtado para não quebrar linha
 }
 
 export default function InstitutionCard({ institution, onEdit }) {
@@ -26,65 +26,108 @@ export default function InstitutionCard({ institution, onEdit }) {
   })
 
   return (
-    <Card sx={{ position: 'relative' }}>
-      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-          {/* Ícone */}
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 2,
-            bgcolor: 'primary.50', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <BusinessIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-          </Box>
-
-          {/* Info */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body1" fontWeight={700} noWrap>{institution.name}</Typography>
-            {institution.cnpj && (
-              <Typography variant="caption" color="text.secondary">{institution.cnpj}</Typography>
-            )}
-          </Box>
-
-          {/* Menu */}
-          <IconButton size="small" onClick={(e) => setAnchor(e.currentTarget)}>
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-            <MenuItem onClick={() => { setAnchor(null); onEdit(institution) }}>
-              <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Editar</ListItemText>
-            </MenuItem>
-            <MenuItem
-              onClick={() => { setAnchor(null); archiveMutation.mutate() }}
-              sx={{ color: 'error.main' }}
-            >
-              <ListItemIcon><ArchiveIcon fontSize="small" color="error" /></ListItemIcon>
-              <ListItemText>Arquivar</ListItemText>
-            </MenuItem>
-          </Menu>
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: '10px',
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+        // altura uniforme: ícone (40) + padding (20 top + 16 bot) + chips (28) + gap (16) = ~120px
+        minHeight: 112,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+      }}
+    >
+      {/* Linha principal */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, pt: 2 }}>
+        {/* Ícone */}
+        <Box sx={{
+          width: 38, height: 38, borderRadius: '8px', flexShrink: 0,
+          bgcolor: '#f0fdfa',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <BusinessIcon sx={{ color: 'primary.main', fontSize: 19 }} />
         </Box>
 
-        {/* Tags */}
-        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
-          <Chip
-            label={`${institution.payment_days} dias`}
-            size="small"
-            sx={{ bgcolor: '#f0fdfa', color: 'primary.dark', fontWeight: 600 }}
-          />
-          <Chip
-            label={PAYMENT_REF_LABELS[institution.payment_ref]}
-            size="small"
-            variant="outlined"
-            sx={{ borderColor: 'divider', color: 'text.secondary' }}
-          />
-          <Chip
-            label={`${institution.units_count} unidade${institution.units_count !== 1 ? 's' : ''}`}
-            size="small"
-            variant="outlined"
-            sx={{ borderColor: 'divider', color: 'text.secondary' }}
-          />
+        {/* Nome + CNPJ */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            fontWeight={700}
+            noWrap
+            sx={{ fontSize: '0.875rem', lineHeight: 1.35 }}
+          >
+            {institution.name}
+          </Typography>
+          {institution.cnpj && (
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {institution.cnpj}
+            </Typography>
+          )}
         </Box>
-      </CardContent>
-    </Card>
+
+        {/* Menu */}
+        <IconButton size="small" onClick={(e) => setAnchor(e.currentTarget)} sx={{ flexShrink: 0 }}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+        <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+          <MenuItem onClick={() => { setAnchor(null); onEdit(institution) }}>
+            <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Editar</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => { setAnchor(null); archiveMutation.mutate() }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon><ArchiveIcon fontSize="small" color="error" /></ListItemIcon>
+            <ListItemText>Arquivar</ListItemText>
+          </MenuItem>
+        </Menu>
+      </Box>
+
+      {/* Chips — fixados na base do card */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.75,
+          px: 2,
+          pb: 1.75,
+          pt: 1.25,
+          // nunca quebra linha; excedente fica invisible atrás do overflow hidden
+          flexWrap: 'nowrap',
+          overflow: 'hidden',
+        }}
+      >
+        <Chip
+          label={`${institution.payment_days}d`}
+          size="small"
+          sx={{
+            bgcolor: '#f0fdfa', color: 'primary.dark', fontWeight: 700,
+            fontSize: '0.7rem', height: 22, borderRadius: '5px', flexShrink: 0,
+          }}
+        />
+        <Chip
+          label={PAYMENT_REF_LABELS[institution.payment_ref] ?? institution.payment_ref}
+          size="small"
+          variant="outlined"
+          sx={{
+            borderColor: 'divider', color: 'text.secondary',
+            fontSize: '0.7rem', height: 22, borderRadius: '5px', flexShrink: 0,
+          }}
+        />
+        <Chip
+          label={`${institution.units_count} un.`}
+          size="small"
+          variant="outlined"
+          sx={{
+            borderColor: 'divider', color: 'text.secondary',
+            fontSize: '0.7rem', height: 22, borderRadius: '5px', flexShrink: 0,
+          }}
+        />
+      </Box>
+    </Box>
   )
 }

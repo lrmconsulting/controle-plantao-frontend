@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Box, Tab, Tabs, Button, Typography,
-  Grid, Skeleton, Alert,
+  Stack, Skeleton, Alert,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import BusinessIcon from '@mui/icons-material/Business'
@@ -115,9 +115,9 @@ export default function Cadastros() {
           {instError && <Alert severity="error" sx={{ mb: 2 }}>Erro ao carregar instituições.</Alert>}
 
           {loadingInstitutions ? (
-            <Grid container spacing={2}>
-              {[1, 2, 3].map((i) => <Grid item xs={12} sm={6} md={4} key={i}><Skeleton variant="rounded" height={110} /></Grid>)}
-            </Grid>
+            <Stack spacing={1.5}>
+              {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={112} sx={{ borderRadius: '10px' }} />)}
+            </Stack>
           ) : institutions?.length === 0 ? (
             <EmptyState
               icon={<BusinessIcon sx={{ fontSize: 48 }} />}
@@ -127,16 +127,15 @@ export default function Cadastros() {
               addLabel="Nova instituição"
             />
           ) : (
-            <Grid container spacing={2}>
+            <Stack spacing={1.5}>
               {institutions.map((inst) => (
-                <Grid item xs={12} sm={6} md={4} key={inst.id}>
-                  <InstitutionCard
-                    institution={inst}
-                    onEdit={(item) => setInstitutionDrawer({ open: true, item })}
-                  />
-                </Grid>
+                <InstitutionCard
+                  key={inst.id}
+                  institution={inst}
+                  onEdit={(item) => setInstitutionDrawer({ open: true, item })}
+                />
               ))}
-            </Grid>
+            </Stack>
           )}
         </>
       )}
@@ -147,9 +146,9 @@ export default function Cadastros() {
           {unitsError && <Alert severity="error" sx={{ mb: 2 }}>Erro ao carregar unidades.</Alert>}
 
           {loadingUnits ? (
-            <Grid container spacing={2}>
-              {[1, 2, 3, 4].map((i) => <Grid item xs={12} sm={6} key={i}><Skeleton variant="rounded" height={72} /></Grid>)}
-            </Grid>
+            <Stack spacing={1.25}>
+              {[1, 2, 3, 4].map((i) => <Skeleton key={i} variant="rounded" height={64} sx={{ borderRadius: '10px' }} />)}
+            </Stack>
           ) : units?.length === 0 ? (
             <EmptyState
               icon={<MapsHomeWorkIcon sx={{ fontSize: 48 }} />}
@@ -159,28 +158,27 @@ export default function Cadastros() {
               addLabel="Nova unidade"
             />
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Stack spacing={3}>
               {Object.entries(unitsByInstitution).map(([instName, instUnits]) => (
                 <Box key={instName}>
                   <Typography
                     variant="overline"
-                    sx={{ color: 'text.secondary', mb: 1.5, display: 'block' }}
+                    sx={{ color: 'text.secondary', mb: 1.25, display: 'block', fontSize: '0.65rem', letterSpacing: '0.1em' }}
                   >
                     {instName}
                   </Typography>
-                  <Grid container spacing={1.5}>
+                  <Stack spacing={1.25}>
                     {instUnits.map((unit) => (
-                      <Grid item xs={12} sm={6} md={4} key={unit.id}>
-                        <UnitCard
-                          unit={unit}
-                          onEdit={(item) => setUnitDrawer({ open: true, item })}
-                        />
-                      </Grid>
+                      <UnitCard
+                        key={unit.id}
+                        unit={unit}
+                        onEdit={(item) => setUnitDrawer({ open: true, item })}
+                      />
                     ))}
-                  </Grid>
+                  </Stack>
                 </Box>
               ))}
-            </Box>
+            </Stack>
           )}
         </>
       )}

@@ -1,5 +1,5 @@
 import {
-  Card, CardContent, Box, Typography, IconButton,
+  Box, Typography, IconButton,
   Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
@@ -26,38 +26,65 @@ export default function UnitCard({ unit, onEdit }) {
   }).format(unit.shift_value)
 
   return (
-    <Card sx={{ position: 'relative' }}>
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {/* Dot colorido */}
-          <Box sx={{
-            width: 12, height: 12, borderRadius: '50%',
-            bgcolor: unit.color || '#0d9488', flexShrink: 0,
-          }} />
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: '10px',
+        bgcolor: 'background.paper',
+        // altura uniforme: 64px fixos — dot + 2 linhas de texto
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Dot colorido */}
+      <Box sx={{
+        width: 11, height: 11, borderRadius: '50%',
+        bgcolor: unit.color || '#0d9488',
+        flexShrink: 0,
+      }} />
 
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={700} noWrap>{unit.name}</Typography>
-            <Typography variant="caption" color="text.secondary">{formatted} / plantão</Typography>
-          </Box>
+      {/* Nome + valor */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          variant="body2"
+          fontWeight={700}
+          noWrap
+          sx={{ fontSize: '0.85rem', lineHeight: 1.3 }}
+        >
+          {unit.name}
+        </Typography>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{ fontSize: '0.75rem' }}
+        >
+          {formatted} / plantão
+        </Typography>
+      </Box>
 
-          <IconButton size="small" onClick={(e) => setAnchor(e.currentTarget)}>
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-            <MenuItem onClick={() => { setAnchor(null); onEdit(unit) }}>
-              <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Editar</ListItemText>
-            </MenuItem>
-            <MenuItem
-              onClick={() => { setAnchor(null); archiveMutation.mutate() }}
-              sx={{ color: 'error.main' }}
-            >
-              <ListItemIcon><ArchiveIcon fontSize="small" color="error" /></ListItemIcon>
-              <ListItemText>Arquivar</ListItemText>
-            </MenuItem>
-          </Menu>
-        </Box>
-      </CardContent>
-    </Card>
+      {/* Menu */}
+      <IconButton size="small" onClick={(e) => setAnchor(e.currentTarget)} sx={{ flexShrink: 0 }}>
+        <MoreVertIcon fontSize="small" />
+      </IconButton>
+      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+        <MenuItem onClick={() => { setAnchor(null); onEdit(unit) }}>
+          <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Editar</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => { setAnchor(null); archiveMutation.mutate() }}
+          sx={{ color: 'error.main' }}
+        >
+          <ListItemIcon><ArchiveIcon fontSize="small" color="error" /></ListItemIcon>
+          <ListItemText>Arquivar</ListItemText>
+        </MenuItem>
+      </Menu>
+    </Box>
   )
 }
