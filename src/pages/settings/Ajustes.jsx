@@ -9,7 +9,10 @@ import {
   Switch, FormControlLabel, Stack, Chip, IconButton,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
   Slider, InputAdornment, Snackbar,
+  Checkbox, FormControlLabel as MuiFormControlLabel, List, ListItem,
+  ListItemButton, ListItemIcon, ListItemText as MuiListItemText,
 } from '@mui/material'
+import FilterListIcon from '@mui/icons-material/FilterList'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
@@ -286,10 +289,202 @@ function TabPerfil() {
 }
 
 /* ══════════════════════════════════════════
+   DIALOG: selecionar calendários
+══════════════════════════════════════════ */
+function CalendarPickerDialog({ open, onClose, source, integration }) {
+  const queryClient = useQueryClient()
+
+  const [selected, setSelected] = useState(null)   // null = ainda não carregou
+  const [allSelected, setAllSelected] = useState(true)
+
+  // Busca calendários disponíveis
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['available-calendars', source],
+    queryFn: () => integrationsApi.availableCalendars(source).then(r => r.data),
+    enabled: open,
+    retry: false,
+  })
+
+  // Inicializa seleção quando os dados chegam
+  useEffect(() => {
+    if (!data) return
+    if (data.all_selected || !data.selected_ids?.length) {
+      setAllSelected(true)
+      setSelected(data.calendars.map(c => c.id))
+    } else {
+      setAllSelected(false)
+      setSelected(data.selected_ids)
+    }
+  }, [data])
+
+  const saveMutation = useMutation({
+    mutationFn: (ids) => integrationsApi.selectCalendars(source, ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['integrations'])
+      onClose()
+    },
+  })
+
+  function handleToggle(id) {
+    setAllSelected(false)
+    setSelected(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  function handleSelectAll() {
+    setAllSelected(true)
+    setSelected((data?.calendars || []).map(c => c.id))
+  }
+
+  function handleSave() {
+    // Envia lista vazia = todos; envia IDs específicos = filtro
+    const payload = allSelected ? [] : (selected || [])
+    saveMutation.mutate(payload)
+  }
+
+  const calendars = data?.calendars || []
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700, pb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <FilterListIcon sx={{ fontSize: 20 }} />
+        Filtrar calendários
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Selecione quais calendários da conta devem ser sincronizados com o Vitalis.
+        </Typography>
+
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+            <CircularProgress size={28} />
+          </Box>
+        )}
+
+        {isError && (
+          <Alert severity="error" sx={{ mb: 1 }}>
+            Não foi possível carregar os calendários. Verifique a conexão.
+          </Alert>
+        )}
+
+        {!isLoading && !isError && (
+          <>
+            {/* "Todos os calendários" */}
+            <Box
+              onClick={handleSelectAll}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 1.5,
+                px: 1, py: 0.75, mb: 0.5,
+                border: '1px solid', borderRadius: '8px',
+                borderColor: allSelected ? 'primary.main' : 'divider',
+                bgcolor: allSelected ? 'primary.50' : 'transparent',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: allSelected ? 'primary.50' : '#f8fafc' },
+              }}
+            >
+              <Checkbox
+                checked={allSelected}
+                onChange={handleSelectAll}
+                onClick={e => e.stopPropagation()}
+                size="small"
+                sx={{ p: 0 }}
+              />
+              <Box>
+                <Typography variant="body2" fontWeight={700}>Todos os calendários</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Novos calendários adicionados também serão incluídos automaticamente
+                </Typography>
+              </Box>
+            </Box>
+
+            <Divider sx={{ my: 1 }}>
+              <Typography variant="caption" color="text.disabled">ou selecione individualmente</Typography>
+            </Divider>
+
+            <List dense disablePadding sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {calendars.map((cal) => {
+                const isChecked = !allSelected && (selected || []).includes(cal.id)
+                return (
+                  <ListItem key={cal.id} disablePadding>
+                    <ListItemButton
+                      onClick={() => handleToggle(cal.id)}
+                      dense
+                      sx={{
+                        borderRadius: '8px',
+                        border: '1px solid',
+                        borderColor: isChecked ? 'primary.main' : 'divider',
+                        bgcolor: isChecked ? 'primary.50' : 'transparent',
+                        px: 1.25, py: 0.75,
+                        '&:hover': { bgcolor: isChecked ? 'primary.50' : '#f8fafc' },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 32 }}>
+                        <Checkbox
+                          checked={isChecked}
+                          size="small"
+                          sx={{ p: 0 }}
+                          tabIndex={-1}
+                          disableRipple
+                        />
+                      </ListItemIcon>
+                      <MuiListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{
+                              width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                              bgcolor: cal.color || '#94a3b8',
+                            }} />
+                            <Typography variant="body2" fontWeight={500} noWrap>
+                              {cal.name}
+                              {cal.primary && (
+                                <Chip label="principal" size="small"
+                                  sx={{ ml: 0.75, height: 16, fontSize: '0.58rem', borderRadius: '4px' }} />
+                              )}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                )
+              })}
+            </List>
+
+            {!allSelected && selected?.length === 0 && (
+              <Alert severity="warning" sx={{ mt: 1.5, fontSize: '0.78rem' }}>
+                Nenhum calendário selecionado — nenhum evento será importado.
+              </Alert>
+            )}
+          </>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button variant="text" onClick={onClose} disabled={saveMutation.isPending}>
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={isLoading || isError || saveMutation.isPending}
+          startIcon={saveMutation.isPending && <CircularProgress size={14} color="inherit" />}
+        >
+          {saveMutation.isPending ? 'Salvando…' : 'Salvar seleção'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/* ══════════════════════════════════════════
    ABA 2 — INTEGRAÇÕES
 ══════════════════════════════════════════ */
-function IntegrationCard({ label, icon, description, integration, onDisconnect, onSync, isSyncing, children }) {
+function IntegrationCard({ label, icon, description, integration, onDisconnect, onSync, isSyncing, onManageCalendars, children }) {
   const isActive = integration?.status === 'active'
+
+  // Summary chip: "X de Y calendários" or "Todos os calendários"
+  const selectedIds = integration?.selected_calendar_ids
+  const hasFilter   = selectedIds && selectedIds.length > 0
 
   return (
     <Card
@@ -341,14 +536,14 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
 
         {/* Ações quando conectado */}
         {isActive && (
-          <Stack direction="row" spacing={1} mt={2} ml={8}>
+          <Stack direction="row" spacing={1} mt={2} ml={8} flexWrap="wrap" gap={1}>
             <Button
               size="small"
               variant="outlined"
               startIcon={
                 isSyncing
                   ? <CircularProgress size={14} color="inherit" />
-                  : <SyncIcon fontSize="small" sx={{ transition: 'transform 0.3s', ...(isSyncing && { animation: 'spin 1s linear infinite' }) }} />
+                  : <SyncIcon fontSize="small" />
               }
               onClick={onSync}
               disabled={isSyncing}
@@ -356,6 +551,19 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
             >
               {isSyncing ? 'Sincronizando…' : 'Sincronizar'}
             </Button>
+            {onManageCalendars && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<FilterListIcon fontSize="small" />}
+                onClick={onManageCalendars}
+                sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}
+              >
+                {hasFilter
+                  ? `${selectedIds.length} calendário${selectedIds.length !== 1 ? 's' : ''} selecionado${selectedIds.length !== 1 ? 's' : ''}`
+                  : 'Filtrar calendários'}
+              </Button>
+            )}
             <Button
               size="small"
               variant="outlined"
@@ -565,6 +773,15 @@ function TabIntegracoes() {
     onSuccess: () => queryClient.invalidateQueries(['integrations']),
   })
 
+  /* Calendar picker dialog */
+  const [pickerOpen, setPickerOpen]     = useState(false)
+  const [pickerSource, setPickerSource] = useState(null)
+
+  function openPicker(source) {
+    setPickerSource(source)
+    setPickerOpen(true)
+  }
+
   /* Sync */
   const [syncSnack, setSyncSnack] = useState(null)  // { severity, message }
 
@@ -601,6 +818,7 @@ function TabIntegracoes() {
         onDisconnect={() => disconnectMutation.mutate('google')}
         onSync={() => syncMutation.mutate()}
         isSyncing={syncMutation.isPending}
+        onManageCalendars={googleIntegration?.status === 'active' ? () => openPicker('google') : undefined}
       >
         <Stack spacing={2.5}>
           <Typography variant="body2" color="text.secondary">
@@ -629,6 +847,7 @@ function TabIntegracoes() {
         onDisconnect={() => disconnectMutation.mutate('apple')}
         onSync={() => syncMutation.mutate()}
         isSyncing={syncMutation.isPending}
+        onManageCalendars={appleIntegration?.status === 'active' ? () => openPicker('apple') : undefined}
       >
         <form onSubmit={hApple(d => appleConnectMutation.mutate(d))}>
           <Stack spacing={3}>
@@ -704,6 +923,16 @@ function TabIntegracoes() {
       </IntegrationCard>
 
       <AppPasswordHelpDialog open={appleHelpOpen} onClose={() => setAppleHelpOpen(false)} />
+
+      {/* Dialog de seleção de calendários */}
+      {pickerSource && (
+        <CalendarPickerDialog
+          open={pickerOpen}
+          source={pickerSource}
+          integration={pickerSource === 'google' ? googleIntegration : appleIntegration}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
       {/* Snackbar de feedback da sincronização */}
       <Snackbar

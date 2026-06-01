@@ -40,4 +40,11 @@ export const integrationsApi = {
 
   /** Eventos do Google Calendar para um mês: month = 'YYYY-MM' */
   googleEvents: (month) => api.get('/integrations/google/events/', { params: { month } }),
+
+  /** Lista calendários disponíveis na integração: source = 'google' | 'apple' */
+  availableCalendars: (source) => api.get(`/integrations/${source}/available-calendars/`),
+
+  /** Salva calendários selecionados: selected_ids = [] (vazio = todos) */
+  selectCalendars: (source, selectedIds) =>
+    api.patch(`/integrations/${source}/select-calendars/`, { selected_ids: selectedIds }),
 }
