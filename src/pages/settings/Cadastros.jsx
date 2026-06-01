@@ -188,6 +188,7 @@ export default function Cadastros() {
       {/* FAB mobile */}
       <Button
         variant="contained"
+        size="small"
         onClick={() =>
           tab === 0
             ? setInstitutionDrawer({ open: true, item: null })
@@ -195,12 +196,16 @@ export default function Cadastros() {
         }
         sx={{
           display: { xs: 'flex', sm: 'none' },
-          position: 'fixed', bottom: 80, right: 20,
-          borderRadius: 99, px: 2.5, py: 1.5,
-          boxShadow: '0 4px 16px rgba(13,148,136,0.35)',
-          zIndex: 1000,
+          position: 'fixed', bottom: 72, right: 16,
+          borderRadius: '20px',
+          px: 2, py: 0.875,
+          minWidth: 0,
+          boxShadow: '0 2px 12px rgba(13,148,136,0.30)',
+          zIndex: 1050,
+          fontSize: '0.8rem',
+          fontWeight: 600,
         }}
-        startIcon={<AddIcon />}
+        startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
       >
         {tab === 0 ? 'Instituição' : 'Unidade'}
       </Button>

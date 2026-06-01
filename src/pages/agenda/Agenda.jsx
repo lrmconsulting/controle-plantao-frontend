@@ -664,7 +664,7 @@ export default function Agenda() {
 
       {/* FAB mobile */}
       {isMobile && (
-        <Fab color="primary" onClick={() => openCreate(null)} sx={{ position: 'fixed', bottom: 80, right: 16, zIndex: 1200 }}>
+        <Fab color="primary" onClick={() => openCreate(null)} sx={{ position: 'fixed', bottom: 72, right: 16, zIndex: 1200 }}>
           <AddIcon />
         </Fab>
       )}

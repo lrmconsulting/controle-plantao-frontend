@@ -536,18 +536,30 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
 
         {/* Ações quando conectado */}
         {isActive && (
-          <Stack direction="row" spacing={1} mt={2} ml={8} flexWrap="wrap" gap={1}>
+          <Box
+            sx={{
+              mt: 2,
+              ml: { xs: 0, sm: 8 },
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
             <Button
               size="small"
               variant="outlined"
               startIcon={
                 isSyncing
-                  ? <CircularProgress size={14} color="inherit" />
-                  : <SyncIcon fontSize="small" />
+                  ? <CircularProgress size={13} color="inherit" />
+                  : <SyncIcon sx={{ fontSize: 15 }} />
               }
               onClick={onSync}
               disabled={isSyncing}
-              sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}
+              sx={{
+                borderColor: 'divider', color: 'text.secondary', flexShrink: 0,
+                '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
+              }}
             >
               {isSyncing ? 'Sincronizando…' : 'Sincronizar'}
             </Button>
@@ -555,25 +567,31 @@ function IntegrationCard({ label, icon, description, integration, onDisconnect, 
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<FilterListIcon fontSize="small" />}
+                startIcon={<FilterListIcon sx={{ fontSize: 15 }} />}
                 onClick={onManageCalendars}
-                sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}
+                sx={{
+                  borderColor: hasFilter ? 'primary.main' : 'divider',
+                  color: hasFilter ? 'primary.main' : 'text.secondary',
+                  flexShrink: 0,
+                  '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
+                }}
               >
                 {hasFilter
-                  ? `${selectedIds.length} calendário${selectedIds.length !== 1 ? 's' : ''} selecionado${selectedIds.length !== 1 ? 's' : ''}`
-                  : 'Filtrar calendários'}
+                  ? `${selectedIds.length} cal.`
+                  : 'Calendários'}
               </Button>
             )}
             <Button
               size="small"
               variant="outlined"
               color="error"
-              startIcon={<LinkOffIcon fontSize="small" />}
+              startIcon={<LinkOffIcon sx={{ fontSize: 15 }} />}
               onClick={onDisconnect}
+              sx={{ flexShrink: 0 }}
             >
               Desconectar
             </Button>
-          </Stack>
+          </Box>
         )}
 
         {integration?.error_message && (
