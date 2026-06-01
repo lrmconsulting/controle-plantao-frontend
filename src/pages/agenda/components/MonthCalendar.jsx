@@ -57,10 +57,21 @@ function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Extrai a chave de data (YYYY-MM-DD) de um start_datetime vindo da API.
+ * Usa os primeiros 10 caracteres da string ISO diretamente, evitando
+ * conversão para horário local que poderia deslocar o evento um dia.
+ */
+function shiftDateKey(isoStr) {
+  if (!isoStr) return null
+  return isoStr.slice(0, 10)   // "2026-05-15T00:00:00Z" → "2026-05-15"
+}
+
 function groupShiftsByDate(shifts) {
   const map = {}
   shifts.forEach((s) => {
-    const k = dateKey(new Date(s.start_datetime))
+    const k = shiftDateKey(s.start_datetime)
+    if (!k) return
     if (!map[k]) map[k] = []
     map[k].push(s)
   })

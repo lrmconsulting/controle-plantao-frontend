@@ -447,8 +447,8 @@ export default function Agenda() {
     if (!selectedDate) return []
     const key = dateKey(selectedDate)
     return (monthShiftsData || []).filter(s => {
-      const dt = new Date(s.start_datetime)
-      return dateKey(dt) === key
+      // Usa os primeiros 10 caracteres para evitar desvio por timezone
+      return (s.start_datetime || '').slice(0, 10) === key
     }).sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime))
   }, [selectedDate, monthShiftsData])
 
