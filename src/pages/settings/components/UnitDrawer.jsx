@@ -5,10 +5,13 @@ import { z } from 'zod'
 import {
   Drawer, Box, Typography, TextField, Button, IconButton,
   MenuItem, CircularProgress, InputAdornment,
+  ToggleButtonGroup, ToggleButton, Alert,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
+import CloseIcon            from '@mui/icons-material/Close'
+import RepeatIcon           from '@mui/icons-material/Repeat'
+import EventNoteIcon        from '@mui/icons-material/EventNote'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { unitsApi } from '@/api/units'
+import { unitsApi }        from '@/api/units'
 import { institutionsApi } from '@/api/institutions'
 
 const PRESET_COLORS = [
@@ -17,11 +20,20 @@ const PRESET_COLORS = [
 ]
 
 const schema = z.object({
-  name:        z.string().min(2, 'Nome obrigatório'),
-  institution: z.string().min(1, 'Instituição obrigatória'),
-  shift_value: z.coerce.number().min(0.01, 'Valor deve ser maior que zero'),
-  color:       z.string().default('#0d9488'),
-  notes:       z.string().optional(),
+  name:          z.string().min(2, 'Nome obrigatório'),
+  institution:   z.string().min(1, 'Instituição obrigatória'),
+  billing_type:  z.enum(['per_shift', 'monthly']).default('per_shift'),
+  shift_value:   z.coerce.number().optional(),
+  monthly_value: z.coerce.number().optional(),
+  color:         z.string().default('#0d9488'),
+  notes:         z.string().optional(),
+}).superRefine((d, ctx) => {
+  if (d.billing_type === 'per_shift' && (!(d.shift_value) || d.shift_value <= 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe o valor por plantão', path: ['shift_value'] })
+  }
+  if (d.billing_type === 'monthly' && (!(d.monthly_value) || d.monthly_value <= 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe o valor mensal fixo', path: ['monthly_value'] })
+  }
 })
 
 export default function UnitDrawer({ open, onClose, unit }) {
@@ -34,24 +46,30 @@ export default function UnitDrawer({ open, onClose, unit }) {
     select: (res) => res.data.results ?? res.data,
   })
 
-  const { register, handleSubmit, reset, control, watch, setValue, formState: { errors, isSubmitting } } = useForm({
+  const {
+    register, handleSubmit, reset, control, watch, setValue,
+    formState: { errors },
+  } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { color: '#0d9488' },
+    defaultValues: { billing_type: 'per_shift', color: '#0d9488' },
   })
 
-  const selectedColor = watch('color')
+  const selectedColor   = watch('color')
+  const billingType     = watch('billing_type')
 
   useEffect(() => {
     if (unit) {
       reset({
-        name:        unit.name,
-        institution: unit.institution,
-        shift_value: unit.shift_value,
-        color:       unit.color || '#0d9488',
-        notes:       unit.notes || '',
+        name:          unit.name,
+        institution:   unit.institution,
+        billing_type:  unit.billing_type || 'per_shift',
+        shift_value:   unit.shift_value   ?? '',
+        monthly_value: unit.monthly_value ?? '',
+        color:         unit.color || '#0d9488',
+        notes:         unit.notes || '',
       })
     } else {
-      reset({ name: '', institution: '', shift_value: '', color: '#0d9488', notes: '' })
+      reset({ name: '', institution: '', billing_type: 'per_shift', shift_value: '', monthly_value: '', color: '#0d9488', notes: '' })
     }
   }, [unit, reset])
 
@@ -70,7 +88,7 @@ export default function UnitDrawer({ open, onClose, unit }) {
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: '100%', sm: 440 }, maxWidth: '100vw', p: 0, overflowX: 'hidden' } }}
+      PaperProps={{ sx: { width: { xs: '100%', sm: 440 }, maxWidth: '100vw', p: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
       {/* Header */}
       <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -118,18 +136,77 @@ export default function UnitDrawer({ open, onClose, unit }) {
           )}
         />
 
-        <TextField
-          label="Valor do plantão"
-          type="number"
-          slotProps={{
-            input: {
-              startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-            },
-          }}
-          {...register('shift_value')}
-          error={!!errors.shift_value}
-          helperText={errors.shift_value?.message}
-        />
+        {/* ── Tipo de cobrança ────────────────────────────────────── */}
+        <Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+            Tipo de faturamento
+          </Typography>
+          <Controller
+            name="billing_type"
+            control={control}
+            render={({ field }) => (
+              <ToggleButtonGroup
+                exclusive
+                value={field.value}
+                onChange={(_, v) => v && field.onChange(v)}
+                size="small"
+                fullWidth
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    textTransform: 'none', fontWeight: 600, fontSize: '0.8rem',
+                    border: '1px solid', borderColor: 'divider', py: 1,
+                    '&.Mui-selected': {
+                      bgcolor: 'primary.main', color: 'white', borderColor: 'primary.main',
+                      '&:hover': { bgcolor: 'primary.dark' },
+                    },
+                  },
+                }}
+              >
+                <ToggleButton value="per_shift" sx={{ gap: 0.75 }}>
+                  <RepeatIcon sx={{ fontSize: 16 }} />
+                  Por plantão
+                </ToggleButton>
+                <ToggleButton value="monthly" sx={{ gap: 0.75 }}>
+                  <EventNoteIcon sx={{ fontSize: 16 }} />
+                  Mensal fixo
+                </ToggleButton>
+              </ToggleButtonGroup>
+            )}
+          />
+
+          {/* Dica contextual */}
+          <Alert
+            severity="info"
+            sx={{ mt: 1.25, fontSize: '0.75rem', py: 0.5, '& .MuiAlert-icon': { fontSize: 16 } }}
+          >
+            {billingType === 'monthly'
+              ? 'Valor único por mês, independente da quantidade de plantões realizados.'
+              : 'Cada plantão realizado gera um lançamento separado no faturamento.'}
+          </Alert>
+        </Box>
+
+        {/* ── Campo de valor (condicional) ────────────────────────── */}
+        {billingType === 'per_shift' ? (
+          <TextField
+            key="shift_value"
+            label="Valor por plantão"
+            type="number"
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }}
+            {...register('shift_value')}
+            error={!!errors.shift_value}
+            helperText={errors.shift_value?.message}
+          />
+        ) : (
+          <TextField
+            key="monthly_value"
+            label="Valor mensal fixo"
+            type="number"
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }}
+            {...register('monthly_value')}
+            error={!!errors.monthly_value}
+            helperText={errors.monthly_value?.message}
+          />
+        )}
 
         {/* Seletor de cor */}
         <Box>
@@ -161,9 +238,9 @@ export default function UnitDrawer({ open, onClose, unit }) {
         />
 
         {mutation.isError && (
-          <Typography color="error" variant="caption">
-            Erro ao salvar. Tente novamente.
-          </Typography>
+          <Alert severity="error" sx={{ fontSize: '0.8rem' }}>
+            {mutation.error?.response?.data?.detail || 'Erro ao salvar. Tente novamente.'}
+          </Alert>
         )}
       </Box>
 

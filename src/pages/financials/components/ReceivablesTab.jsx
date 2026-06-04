@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react'
 import {
   Box, Typography, Button, Chip, Skeleton, Collapse,
   IconButton, CircularProgress, ToggleButtonGroup, ToggleButton,
+  Menu, MenuItem,
 } from '@mui/material'
 import ExpandMoreIcon              from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon              from '@mui/icons-material/ExpandLess'
@@ -15,6 +16,7 @@ import AccountBalanceWalletIcon    from '@mui/icons-material/AccountBalanceWalle
 import ViewColumnIcon              from '@mui/icons-material/ViewColumn'
 import FormatListBulletedIcon      from '@mui/icons-material/FormatListBulleted'
 import WarningAmberIcon            from '@mui/icons-material/WarningAmber'
+import ScheduleSendIcon            from '@mui/icons-material/ScheduleSend'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invoicesApi, paymentsApi } from '@/api/financials'
 import InvoiceDrawer from './InvoiceDrawer'
@@ -71,10 +73,38 @@ function formatMonthKey(monthKey) {
    PIPELINE VIEW — 3 colunas kanban
 ═══════════════════════════════════════════ */
 
+/** Botão de postergação de pagamento */
+function DeferButton({ paymentId, onDefer }) {
+  const [anchor, setAnchor] = useState(null)
+  if (!paymentId) return null
+  return (
+    <>
+      <Button size="small" variant="outlined"
+        startIcon={<ScheduleSendIcon sx={{ fontSize: 12 }} />}
+        onClick={(e) => setAnchor(e.currentTarget)}
+        sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
+        Postergar
+      </Button>
+      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}
+        slotProps={{ paper: { sx: { minWidth: 140, borderRadius: '8px' } } }}>
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 30) }}
+          sx={{ fontSize: '0.8rem', gap: 1 }}>
+          <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />+30 dias
+        </MenuItem>
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 60) }}
+          sx={{ fontSize: '0.8rem', gap: 1 }}>
+          <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />+60 dias
+        </MenuItem>
+      </Menu>
+    </>
+  )
+}
+
 /** Card compacto para o kanban */
-function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, confirmingId }) {
+function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
   const canSetNF    = invoice.status === 'draft'
   const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
+  const canDefer    = invoice.payment?.id && invoice.status !== 'paid' && invoice.status !== 'cancelled'
   const isConfirming = confirmingId === invoice.id
   const isOverdue   = invoice.status === 'overdue'
 
@@ -130,8 +160,8 @@ function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, confirmingId }
       </Box>
 
       {/* Ações */}
-      {(canSetNF || canConfirm) && (
-        <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end' }}>
+      {(canSetNF || canConfirm || canDefer) && (
+        <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           {canSetNF && (
             <Button size="small" variant="outlined"
               onClick={() => onSetNF(invoice)}
@@ -144,10 +174,11 @@ function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, confirmingId }
               onClick={() => onConfirmPayment(invoice)}
               disabled={isConfirming}
               sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
-              {isConfirming
-                ? <CircularProgress size={12} color="inherit" />
-                : 'Confirmar recebimento'}
+              {isConfirming ? <CircularProgress size={12} color="inherit" /> : 'Confirmar recebimento'}
             </Button>
+          )}
+          {canDefer && (
+            <DeferButton paymentId={invoice.payment?.id} onDefer={onDeferPayment} />
           )}
         </Box>
       )}
@@ -156,7 +187,7 @@ function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, confirmingId }
 }
 
 /** Coluna do kanban */
-function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMessage, onSetNF, onConfirmPayment, confirmingId }) {
+function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMessage, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
   const total = invoices.reduce((s, inv) => s + parseFloat(inv.total_value || 0), 0)
 
   return (
@@ -209,6 +240,7 @@ function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMess
               last={idx === invoices.length - 1}
               onSetNF={onSetNF}
               onConfirmPayment={onConfirmPayment}
+              onDeferPayment={onDeferPayment}
               confirmingId={confirmingId}
             />
           ))
@@ -219,7 +251,7 @@ function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMess
 }
 
 /** View pipeline completa */
-function PipelineView({ timeline, onSetNF, onConfirmPayment, confirmingId }) {
+function PipelineView({ timeline, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
   const allInvoices = (timeline || []).flatMap(g => g.invoices || [])
 
   const draftInvoices  = allInvoices.filter(inv => inv.status === 'draft')
@@ -242,6 +274,7 @@ function PipelineView({ timeline, onSetNF, onConfirmPayment, confirmingId }) {
         emptyMessage="Nenhuma fatura aguardando emissão de NF"
         onSetNF={onSetNF}
         onConfirmPayment={onConfirmPayment}
+        onDeferPayment={onDeferPayment}
         confirmingId={confirmingId}
       />
       <PipelineColumn
@@ -253,6 +286,7 @@ function PipelineView({ timeline, onSetNF, onConfirmPayment, confirmingId }) {
         emptyMessage="Nenhuma NF aguardando confirmação de pagamento"
         onSetNF={onSetNF}
         onConfirmPayment={onConfirmPayment}
+        onDeferPayment={onDeferPayment}
         confirmingId={confirmingId}
       />
       <PipelineColumn
@@ -264,6 +298,7 @@ function PipelineView({ timeline, onSetNF, onConfirmPayment, confirmingId }) {
         emptyMessage="Nenhum pagamento recebido neste período"
         onSetNF={onSetNF}
         onConfirmPayment={onConfirmPayment}
+        onDeferPayment={onDeferPayment}
         confirmingId={confirmingId}
       />
     </Box>
@@ -330,12 +365,13 @@ function StatusPipeline({ status }) {
   )
 }
 
-function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
+function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
   const [expanded,   setExpanded]   = useState(false)
   const status      = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
   const accent      = STATUS_ACCENT[invoice.status] || '#94a3b8'
   const canSetNF    = invoice.status !== 'cancelled'
   const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
+  const canDefer    = invoice.payment?.id && invoice.status !== 'paid' && invoice.status !== 'cancelled'
   const shifts      = invoice.invoice_shifts || []
   const isConfirming = confirmingId === invoice.id
 
@@ -425,6 +461,9 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
             {isConfirming ? <CircularProgress size={14} color="inherit" /> : 'Confirmar recebimento'}
           </Button>
         )}
+        {canDefer && (
+          <DeferButton paymentId={invoice.payment?.id} onDefer={onDeferPayment} />
+        )}
       </Box>
 
       <Collapse in={expanded}>
@@ -469,7 +508,7 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, confirmingId }) {
   )
 }
 
-function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
+function MonthGroup({ group, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
   const billed   = parseFloat(group.total_billed   || 0)
   const received = parseFloat(group.total_received || 0)
   const pending  = parseFloat(group.total_pending  || 0)
@@ -505,7 +544,7 @@ function MonthGroup({ group, onSetNF, onConfirmPayment, confirmingId }) {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {(group.invoices || []).map(inv => (
           <InvoiceCard key={inv.id} invoice={inv}
-            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment} confirmingId={confirmingId} />
+            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment} onDeferPayment={onDeferPayment} confirmingId={confirmingId} />
         ))}
       </Box>
     </Box>
@@ -615,6 +654,15 @@ export default function ReceivablesTab() {
     onError: () => setConfirmingId(null),
   })
 
+  const deferMutation = useMutation({
+    mutationFn: ({ paymentId, days }) => paymentsApi.defer(paymentId, days),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['forecast'] })
+    },
+  })
+
   function openSetNF(inv) { setDrawerInvoice(inv); setDrawerOpen(true) }
 
   function handleConfirmPayment(inv) {
@@ -622,6 +670,10 @@ export default function ReceivablesTab() {
       setConfirmingId(inv.id)
       confirmMutation.mutate({ paymentId: inv.payment.id })
     }
+  }
+
+  function handleDeferPayment(paymentId, days) {
+    deferMutation.mutate({ paymentId, days })
   }
 
   function handleExport() {
@@ -803,13 +855,15 @@ export default function ReceivablesTab() {
             timeline={filteredTimeline}
             onSetNF={openSetNF}
             onConfirmPayment={handleConfirmPayment}
+            onDeferPayment={handleDeferPayment}
             confirmingId={confirmingId}
           />
         ) : (
           <Box>
             {filteredTimeline.map(group => (
               <MonthGroup key={group.month} group={group}
-                onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment} confirmingId={confirmingId} />
+                onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment}
+                onDeferPayment={handleDeferPayment} confirmingId={confirmingId} />
             ))}
           </Box>
         )

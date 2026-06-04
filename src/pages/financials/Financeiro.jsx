@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import {
   Box, Typography, IconButton, Button, Chip, Skeleton,
   useTheme, useMediaQuery, CircularProgress,
-  Tabs, Tab, Alert,
+  Tabs, Tab, Alert, Menu, MenuItem,
 } from '@mui/material'
 import ChevronLeftIcon          from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon         from '@mui/icons-material/ChevronRight'
@@ -12,6 +12,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import CheckCircleOutlineIcon   from '@mui/icons-material/CheckCircleOutlined'
 import PendingActionsIcon       from '@mui/icons-material/PendingActions'
 import CalendarMonthIcon        from '@mui/icons-material/CalendarMonth'
+import ScheduleSendIcon         from '@mui/icons-material/ScheduleSend'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { shiftsApi }               from '@/api/shifts'
 import { invoicesApi, paymentsApi } from '@/api/financials'
@@ -105,11 +106,44 @@ function SummaryRow({ item, last }) {
   )
 }
 
+/* ─── Botão de postergação reutilizável ─── */
+function DeferButton({ paymentId, onDefer, disabled }) {
+  const [anchor, setAnchor] = useState(null)
+  if (!paymentId) return null
+  return (
+    <>
+      <Button
+        size="small" variant="outlined"
+        startIcon={<ScheduleSendIcon sx={{ fontSize: 14 }} />}
+        onClick={(e) => setAnchor(e.currentTarget)}
+        disabled={disabled}
+        sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}
+      >
+        Postergar
+      </Button>
+      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}
+        slotProps={{ paper: { sx: { minWidth: 160, borderRadius: '8px' } } }}>
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 30) }}
+          sx={{ fontSize: '0.82rem', gap: 1 }}>
+          <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+          +30 dias
+        </MenuItem>
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 60) }}
+          sx={{ fontSize: '0.82rem', gap: 1 }}>
+          <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+          +60 dias
+        </MenuItem>
+      </Menu>
+    </>
+  )
+}
+
 /* ─── Card de fatura ─── */
-function InvoiceCard({ invoice, onSetNF, onConfirmPayment }) {
+function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment }) {
   const status    = INVOICE_STATUS[invoice.status] || INVOICE_STATUS.draft
   const canSetNF  = invoice.status !== 'cancelled'
   const canConfirm = invoice.status === 'issued' || invoice.status === 'overdue'
+  const canDefer   = invoice.payment?.id && invoice.status !== 'paid' && invoice.status !== 'cancelled'
 
   return (
     <Box sx={{ borderRadius: '8px', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', overflow: 'hidden' }}>
@@ -169,8 +203,8 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment }) {
           )}
         </Box>
 
-        {(canSetNF || canConfirm) && (
-          <Box sx={{ display: 'flex', gap: 1, pt: 1.25, borderTop: '1px solid', borderColor: 'divider' }}>
+        {(canSetNF || canConfirm || canDefer) && (
+          <Box sx={{ display: 'flex', gap: 1, pt: 1.25, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
             {canSetNF && (
               <Button size="small" variant="outlined" onClick={() => onSetNF(invoice)}
                 sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
@@ -182,6 +216,9 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment }) {
                 sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
                 Confirmar recebimento
               </Button>
+            )}
+            {canDefer && (
+              <DeferButton paymentId={invoice.payment?.id} onDefer={onDeferPayment} />
             )}
           </Box>
         )}
@@ -299,6 +336,15 @@ export default function Financeiro() {
     },
   })
 
+  /* ── Postergar pagamento ── */
+  const deferMutation = useMutation({
+    mutationFn: ({ paymentId, days }) => paymentsApi.defer(paymentId, days),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices', monthStr] })
+      queryClient.invalidateQueries({ queryKey: ['forecast'] })
+    },
+  })
+
   /* ── Complementar fatura draft ── */
   const [complementError, setComplementError] = useState(null)
   const complementMutation = useMutation({
@@ -322,6 +368,7 @@ export default function Financeiro() {
   function openGenerate() { setDrawerMode('generate'); setDrawerInvoice(null); setDrawerOpen(true) }
   function openSetNF(inv) { setDrawerMode('setNF');    setDrawerInvoice(inv);  setDrawerOpen(true) }
   function handleConfirmPayment(inv) { if (inv.payment?.id) confirmMutation.mutate(inv.payment.id) }
+  function handleDeferPayment(paymentId, days) { deferMutation.mutate({ paymentId, days }) }
 
   /* ── Resumo ── */
   const totalPrevisto = useMemo(() => (summary||[]).reduce((s,i) => s + parseFloat(i.total_value||0), 0), [summary])
@@ -490,7 +537,7 @@ export default function Financeiro() {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
           {(invoices||[]).map((invoice) => (
-            <InvoiceCard key={invoice.id} invoice={invoice} onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment} />
+            <InvoiceCard key={invoice.id} invoice={invoice} onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment} onDeferPayment={handleDeferPayment} />
           ))}
         </Box>
       )}

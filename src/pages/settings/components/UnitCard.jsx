@@ -64,7 +64,9 @@ export default function UnitCard({ unit, onEdit }) {
           noWrap
           sx={{ fontSize: '0.75rem' }}
         >
-          {formatted} / plantão
+          {unit.billing_type === 'monthly'
+            ? `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(unit.monthly_value || 0)} / mês`
+            : `${formatted} / plantão`}
         </Typography>
       </Box>
 

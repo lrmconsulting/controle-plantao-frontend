@@ -31,4 +31,7 @@ export const paymentsApi = {
 
   /** Confirma recebimento: { received_date? } */
   confirm: (id, data = {}) => api.patch(`/financials/payments/${id}/confirm/`, data),
+
+  /** Posterga a data prevista de pagamento: { days: 30 | 60 } */
+  defer: (id, days) => api.patch(`/financials/payments/${id}/defer/`, { days }),
 }
