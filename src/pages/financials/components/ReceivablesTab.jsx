@@ -17,8 +17,12 @@ import ViewColumnIcon              from '@mui/icons-material/ViewColumn'
 import FormatListBulletedIcon      from '@mui/icons-material/FormatListBulleted'
 import WarningAmberIcon            from '@mui/icons-material/WarningAmber'
 import ScheduleSendIcon            from '@mui/icons-material/ScheduleSend'
+import EditIcon                    from '@mui/icons-material/Edit'
+import DeleteOutlineIcon           from '@mui/icons-material/DeleteOutlined'
+import CancelIcon                  from '@mui/icons-material/Cancel'
+import UndoIcon                    from '@mui/icons-material/Undo'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { invoicesApi, paymentsApi } from '@/api/financials'
+import { invoicesApi } from '@/api/financials'
 import InvoiceDrawer from './InvoiceDrawer'
 
 /* ─── helpers ─── */
@@ -73,25 +77,26 @@ function formatMonthKey(monthKey) {
    PIPELINE VIEW — 3 colunas kanban
 ═══════════════════════════════════════════ */
 
-/** Botão de postergação de pagamento */
-function DeferButton({ paymentId, onDefer }) {
+/** Botão de postergação (usa invoiceId) */
+function DeferButton({ invoiceId, onDefer, disabled }) {
   const [anchor, setAnchor] = useState(null)
-  if (!paymentId) return null
+  if (!invoiceId) return null
   return (
     <>
       <Button size="small" variant="outlined"
         startIcon={<ScheduleSendIcon sx={{ fontSize: 12 }} />}
         onClick={(e) => setAnchor(e.currentTarget)}
+        disabled={disabled}
         sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
         Postergar
       </Button>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}
         slotProps={{ paper: { sx: { minWidth: 140, borderRadius: '8px' } } }}>
-        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 30) }}
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(invoiceId, 30) }}
           sx={{ fontSize: '0.8rem', gap: 1 }}>
           <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />+30 dias
         </MenuItem>
-        <MenuItem dense onClick={() => { setAnchor(null); onDefer(paymentId, 60) }}
+        <MenuItem dense onClick={() => { setAnchor(null); onDefer(invoiceId, 60) }}
           sx={{ fontSize: '0.8rem', gap: 1 }}>
           <ScheduleSendIcon fontSize="small" sx={{ color: 'text.secondary' }} />+60 dias
         </MenuItem>
@@ -101,21 +106,14 @@ function DeferButton({ paymentId, onDefer }) {
 }
 
 /** Card compacto para o kanban */
-function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
-  const canSetNF    = invoice.status === 'draft'
-  const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
-  const canDefer    = invoice.payment?.id && invoice.status !== 'paid' && invoice.status !== 'cancelled'
-  const isConfirming = confirmingId === invoice.id
-  const isOverdue   = invoice.status === 'overdue'
+function PipelineCard({ invoice, last, onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }) {
+  const isDraft  = invoice.status === 'draft'
+  const isIssued = invoice.status === 'issued' || invoice.status === 'overdue'
+  const isPaid   = invoice.status === 'paid'
+  const isOverdue = invoice.status === 'overdue'
 
   return (
-    <Box sx={{
-      px: 1.75, py: 1.25,
-      borderBottom: last ? 'none' : '1px solid',
-      borderColor: 'divider',
-      '&:hover': { bgcolor: '#f8fafc' },
-      transition: 'background-color 0.15s',
-    }}>
+    <Box sx={{ px: 1.75, py: 1.25, borderBottom: last ? 'none' : '1px solid', borderColor: 'divider', '&:hover': { bgcolor: '#f8fafc' }, transition: 'background-color 0.15s' }}>
       {/* Linha principal */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
         <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -132,8 +130,8 @@ function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, onDeferPayment
         </Typography>
       </Box>
 
-      {/* Linha de metadados */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: canSetNF || canConfirm ? 1 : 0 }}>
+      {/* Metadados */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
         {invoice.nf_number && (
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
             NF {invoice.nf_number}
@@ -160,58 +158,70 @@ function PipelineCard({ invoice, last, onSetNF, onConfirmPayment, onDeferPayment
       </Box>
 
       {/* Ações */}
-      {(canSetNF || canConfirm || canDefer) && (
-        <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          {canSetNF && (
-            <Button size="small" variant="outlined"
-              onClick={() => onSetNF(invoice)}
+      <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        {isDraft && (
+          <>
+            <Button size="small" variant="outlined" onClick={() => onSetNF(invoice)}
               sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
               Registrar NF
             </Button>
-          )}
-          {canConfirm && (
-            <Button size="small" variant="contained" color="success"
-              onClick={() => onConfirmPayment(invoice)}
-              disabled={isConfirming}
-              sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
-              {isConfirming ? <CircularProgress size={12} color="inherit" /> : 'Confirmar recebimento'}
+            <IconButton size="small" onClick={() => onEdit(invoice)} title="Editar plantões"
+              sx={{ p: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: '6px' }}>
+              <EditIcon sx={{ fontSize: '0.85rem' }} />
+            </IconButton>
+            <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferringId === invoice.id} />
+            <IconButton size="small" onClick={() => onCancel(invoice.id)} title="Excluir fatura"
+              disabled={cancellingId === invoice.id}
+              sx={{ p: 0.5, border: '1px solid', borderColor: 'error.200', borderRadius: '6px', color: 'error.main', '&:hover': { bgcolor: 'error.50' } }}>
+              {cancellingId === invoice.id ? <CircularProgress size={12} color="error" /> : <DeleteOutlineIcon sx={{ fontSize: '0.85rem' }} />}
+            </IconButton>
+          </>
+        )}
+        {isIssued && (
+          <>
+            <Button size="small" variant="outlined"
+              startIcon={<CancelIcon sx={{ fontSize: 11 }} />}
+              onClick={() => onCancelNF(invoice.id)}
+              sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
+              Cancelar NF
             </Button>
-          )}
-          {canDefer && (
-            <DeferButton paymentId={invoice.payment?.id} onDefer={onDeferPayment} />
-          )}
-        </Box>
-      )}
+            <Button size="small" variant="contained" color="success"
+              startIcon={confirmingId === invoice.id ? null : <CheckCircleOutlinedIcon sx={{ fontSize: '0.8rem !important' }} />}
+              onClick={() => onConfirmPayment(invoice.id)}
+              disabled={confirmingId === invoice.id}
+              sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0 }}>
+              {confirmingId === invoice.id ? <CircularProgress size={12} color="inherit" /> : 'Confirmar'}
+            </Button>
+            <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferringId === invoice.id} />
+          </>
+        )}
+        {isPaid && (
+          <Button size="small" variant="outlined"
+            startIcon={cancellingPaymentId === invoice.id ? null : <UndoIcon sx={{ fontSize: 11 }} />}
+            onClick={() => onCancelPayment(invoice.id)}
+            disabled={cancellingPaymentId === invoice.id}
+            sx={{ fontSize: '0.65rem', py: 0.3, px: 1, borderRadius: '6px', minHeight: 0, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
+            {cancellingPaymentId === invoice.id ? <CircularProgress size={12} color="inherit" /> : 'Cancelar pagamento'}
+          </Button>
+        )}
+      </Box>
     </Box>
   )
 }
 
 /** Coluna do kanban */
-function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMessage, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
+function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMessage, onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }) {
   const total = invoices.reduce((s, inv) => s + parseFloat(inv.total_value || 0), 0)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 180 }}>
       {/* Header da coluna */}
-      <Box sx={{
-        px: 1.75, py: 1.25,
-        bgcolor: bgColor,
-        borderRadius: '8px 8px 0 0',
-        border: '1px solid', borderColor: 'divider',
-        borderBottom: 'none',
-        borderTop: `3px solid ${accentColor}`,
-      }}>
+      <Box sx={{ px: 1.75, py: 1.25, bgcolor: bgColor, borderRadius: '8px 8px 0 0', border: '1px solid', borderColor: 'divider', borderBottom: 'none', borderTop: `3px solid ${accentColor}` }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
           <Box sx={{ color: accentColor, display: 'flex', '& svg': { fontSize: '1rem' } }}>{icon}</Box>
           <Typography variant="body2" fontWeight={700} sx={{ flex: 1 }}>{title}</Typography>
-          <Chip
-            label={invoices.length}
-            size="small"
-            sx={{
-              height: 18, fontSize: '0.62rem', fontWeight: 700, borderRadius: '4px',
-              bgcolor: accentColor + '20', color: accentColor,
-            }}
-          />
+          <Chip label={invoices.length} size="small"
+            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, borderRadius: '4px', bgcolor: accentColor + '20', color: accentColor }} />
         </Box>
         <Typography variant="body1" fontWeight={800} sx={{ color: accentColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
           {currency(total)}
@@ -219,18 +229,10 @@ function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMess
       </Box>
 
       {/* Corpo */}
-      <Box sx={{
-        flex: 1,
-        border: '1px solid', borderColor: 'divider',
-        borderRadius: '0 0 8px 8px',
-        bgcolor: 'background.paper',
-        overflow: 'hidden',
-      }}>
+      <Box sx={{ flex: 1, border: '1px solid', borderColor: 'divider', borderRadius: '0 0 8px 8px', bgcolor: 'background.paper', overflow: 'hidden' }}>
         {invoices.length === 0 ? (
           <Box sx={{ py: 3, px: 2, textAlign: 'center' }}>
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>
-              {emptyMessage}
-            </Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>{emptyMessage}</Typography>
           </Box>
         ) : (
           invoices.map((inv, idx) => (
@@ -239,9 +241,16 @@ function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMess
               invoice={inv}
               last={idx === invoices.length - 1}
               onSetNF={onSetNF}
+              onCancelNF={onCancelNF}
               onConfirmPayment={onConfirmPayment}
-              onDeferPayment={onDeferPayment}
+              onCancelPayment={onCancelPayment}
+              onDefer={onDefer}
+              onCancel={onCancel}
+              onEdit={onEdit}
               confirmingId={confirmingId}
+              cancellingId={cancellingId}
+              deferringId={deferringId}
+              cancellingPaymentId={cancellingPaymentId}
             />
           ))
         )}
@@ -251,62 +260,44 @@ function PipelineColumn({ title, icon, accentColor, bgColor, invoices, emptyMess
 }
 
 /** View pipeline completa */
-function PipelineView({ timeline, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
+function PipelineView({ timeline, onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }) {
   const allInvoices = (timeline || []).flatMap(g => g.invoices || [])
 
   const draftInvoices  = allInvoices.filter(inv => inv.status === 'draft')
   const issuedInvoices = allInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue')
   const paidInvoices   = allInvoices.filter(inv => inv.status === 'paid')
 
+  const sharedProps = { onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }
+
   return (
-    <Box sx={{
-      display: 'grid',
-      gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-      gap: 2,
-      alignItems: 'start',
-    }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, alignItems: 'start' }}>
       <PipelineColumn
-        title="Fatura gerada"
-        icon={<ReceiptLongIcon />}
-        accentColor="#64748b"
-        bgColor="#f8fafc"
+        title="Faturas geradas" icon={<ReceiptLongIcon />}
+        accentColor="#64748b" bgColor="#f8fafc"
         invoices={draftInvoices}
         emptyMessage="Nenhuma fatura aguardando emissão de NF"
-        onSetNF={onSetNF}
-        onConfirmPayment={onConfirmPayment}
-        onDeferPayment={onDeferPayment}
-        confirmingId={confirmingId}
+        {...sharedProps}
       />
       <PipelineColumn
-        title="NF emitida"
-        icon={<AssignmentTurnedInIcon />}
-        accentColor="#2563eb"
-        bgColor="#eff6ff"
+        title="NF emitidas" icon={<AssignmentTurnedInIcon />}
+        accentColor="#2563eb" bgColor="#eff6ff"
         invoices={issuedInvoices}
         emptyMessage="Nenhuma NF aguardando confirmação de pagamento"
-        onSetNF={onSetNF}
-        onConfirmPayment={onConfirmPayment}
-        onDeferPayment={onDeferPayment}
-        confirmingId={confirmingId}
+        {...sharedProps}
       />
       <PipelineColumn
-        title="Valor recebido"
-        icon={<AccountBalanceWalletIcon />}
-        accentColor="#16a34a"
-        bgColor="#f0fdf4"
+        title="Valor recebido" icon={<AccountBalanceWalletIcon />}
+        accentColor="#16a34a" bgColor="#f0fdf4"
         invoices={paidInvoices}
         emptyMessage="Nenhum pagamento recebido neste período"
-        onSetNF={onSetNF}
-        onConfirmPayment={onConfirmPayment}
-        onDeferPayment={onDeferPayment}
-        confirmingId={confirmingId}
+        {...sharedProps}
       />
     </Box>
   )
 }
 
 /* ════════════════════════════════════════════
-   TIMELINE VIEW — grupos por mês (existente)
+   TIMELINE VIEW — grupos por mês
 ═══════════════════════════════════════════ */
 
 const PIPELINE_STEPS = [
@@ -353,11 +344,7 @@ function StatusPipeline({ status }) {
             </Typography>
           </Box>
           {idx < PIPELINE_STEPS.length - 1 && (
-            <Box sx={{
-              flex: 1, height: 2, mt: '7px', mx: '3px',
-              bgcolor: idx < currentStep ? 'success.main' : '#e2e8f0',
-              minWidth: 12,
-            }} />
+            <Box sx={{ flex: 1, height: 2, mt: '7px', mx: '3px', bgcolor: idx < currentStep ? 'success.main' : '#e2e8f0', minWidth: 12 }} />
           )}
         </Fragment>
       ))}
@@ -365,15 +352,14 @@ function StatusPipeline({ status }) {
   )
 }
 
-function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
-  const [expanded,   setExpanded]   = useState(false)
-  const status      = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
-  const accent      = STATUS_ACCENT[invoice.status] || '#94a3b8'
-  const canSetNF    = invoice.status !== 'cancelled'
-  const canConfirm  = invoice.status === 'issued' || invoice.status === 'overdue'
-  const canDefer    = invoice.payment?.id && invoice.status !== 'paid' && invoice.status !== 'cancelled'
-  const shifts      = invoice.invoice_shifts || []
-  const isConfirming = confirmingId === invoice.id
+function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }) {
+  const [expanded, setExpanded] = useState(false)
+  const status    = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft
+  const accent    = STATUS_ACCENT[invoice.status] || '#94a3b8'
+  const isDraft   = invoice.status === 'draft'
+  const isIssued  = invoice.status === 'issued' || invoice.status === 'overdue'
+  const isPaid    = invoice.status === 'paid'
+  const shifts    = invoice.invoice_shifts || []
 
   return (
     <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
@@ -432,11 +418,8 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confi
         </Box>
       </Box>
 
-      <Box sx={{
-        px: 2, py: '8px', bgcolor: '#f8fafc',
-        borderTop: '1px solid', borderColor: 'divider',
-        display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
-      }}>
+      {/* Footer com ações */}
+      <Box sx={{ px: 2, py: '8px', bgcolor: '#f8fafc', borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {shifts.length > 0 && (
           <Button size="small" variant="text" color="inherit"
             startIcon={expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -446,33 +429,62 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confi
           </Button>
         )}
         <Box sx={{ flex: 1 }} />
-        {canSetNF && (
-          <Button size="small" variant="outlined" onClick={() => onSetNF(invoice)}
-            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
-            Registrar NF
-          </Button>
+
+        {isDraft && (
+          <>
+            <Button size="small" variant="outlined" onClick={() => onSetNF(invoice)}
+              sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
+              Registrar NF
+            </Button>
+            <Button size="small" variant="outlined"
+              startIcon={<EditIcon sx={{ fontSize: '0.85rem' }} />}
+              onClick={() => onEdit(invoice)}
+              sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
+              Editar
+            </Button>
+            <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferringId === invoice.id} />
+            <Button size="small" variant="outlined" color="error"
+              startIcon={cancellingId === invoice.id ? null : <DeleteOutlineIcon sx={{ fontSize: '0.85rem' }} />}
+              onClick={() => onCancel(invoice.id)}
+              disabled={cancellingId === invoice.id}
+              sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
+              {cancellingId === invoice.id ? <CircularProgress size={13} color="error" /> : 'Cancelar'}
+            </Button>
+          </>
         )}
-        {canConfirm && (
-          <Button size="small" variant="contained" color="success"
-            onClick={() => onConfirmPayment(invoice)}
-            disabled={isConfirming}
-            startIcon={isConfirming ? null : <CheckCircleOutlinedIcon sx={{ fontSize: '0.9rem !important' }} />}
-            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
-            {isConfirming ? <CircularProgress size={14} color="inherit" /> : 'Confirmar recebimento'}
-          </Button>
+        {isIssued && (
+          <>
+            <Button size="small" variant="outlined"
+              startIcon={<CancelIcon sx={{ fontSize: '0.8rem' }} />}
+              onClick={() => onCancelNF(invoice.id)}
+              sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
+              Cancelar NF
+            </Button>
+            <Button size="small" variant="contained" color="success"
+              onClick={() => onConfirmPayment(invoice.id)}
+              disabled={confirmingId === invoice.id}
+              startIcon={confirmingId === invoice.id ? null : <CheckCircleOutlinedIcon sx={{ fontSize: '0.9rem !important' }} />}
+              sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4 }}>
+              {confirmingId === invoice.id ? <CircularProgress size={14} color="inherit" /> : 'Confirmar pagamento'}
+            </Button>
+            <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferringId === invoice.id} />
+          </>
         )}
-        {canDefer && (
-          <DeferButton paymentId={invoice.payment?.id} onDefer={onDeferPayment} />
+        {isPaid && (
+          <Button size="small" variant="outlined"
+            startIcon={cancellingPaymentId === invoice.id ? null : <UndoIcon sx={{ fontSize: '0.8rem' }} />}
+            onClick={() => onCancelPayment(invoice.id)}
+            disabled={cancellingPaymentId === invoice.id}
+            sx={{ borderRadius: '6px', fontSize: '0.7rem', py: 0.4, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
+            {cancellingPaymentId === invoice.id ? <CircularProgress size={14} color="inherit" /> : 'Cancelar pagamento'}
+          </Button>
         )}
       </Box>
 
+      {/* Lista de plantões */}
       <Collapse in={expanded}>
         <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{
-            display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
-            alignItems: 'center', gap: 1.5, px: 2, py: '6px', bgcolor: '#fafafa',
-            borderBottom: '1px solid', borderColor: 'divider',
-          }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto', alignItems: 'center', gap: 1.5, px: 2, py: '6px', bgcolor: '#fafafa', borderBottom: '1px solid', borderColor: 'divider' }}>
             {['', 'Data / Horário', 'Unidade', 'Valor'].map((h, i) => (
               <Typography key={i} variant="caption" color="text.disabled"
                 sx={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: i === 3 ? 'right' : 'left' }}>
@@ -481,16 +493,11 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confi
             ))}
           </Box>
           {shifts.map((is, idx) => {
-            const endTime  = is.shift_end_date
+            const endTime = is.shift_end_date
               ? new Date(is.shift_end_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               : null
             return (
-              <Box key={idx} sx={{
-                display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto',
-                alignItems: 'center', gap: 1.5, px: 2, py: '8px',
-                borderBottom: idx < shifts.length - 1 ? '1px solid' : 'none',
-                borderColor: 'divider', '&:hover': { bgcolor: '#f8fafc' },
-              }}>
+              <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: '8px 1fr 1fr auto', alignItems: 'center', gap: 1.5, px: 2, py: '8px', borderBottom: idx < shifts.length - 1 ? '1px solid' : 'none', borderColor: 'divider', '&:hover': { bgcolor: '#f8fafc' } }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: is.unit_color || '#94a3b8', flexShrink: 0 }} />
                 <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
                   {fmtDatetime(is.shift_date)}{endTime ? ` – ${endTime}` : ''}
@@ -508,18 +515,16 @@ function InvoiceCard({ invoice, onSetNF, onConfirmPayment, onDeferPayment, confi
   )
 }
 
-function MonthGroup({ group, onSetNF, onConfirmPayment, onDeferPayment, confirmingId }) {
+function MonthGroup({ group, onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }) {
   const billed   = parseFloat(group.total_billed   || 0)
   const received = parseFloat(group.total_received || 0)
   const pending  = parseFloat(group.total_pending  || 0)
 
+  const sharedProps = { onSetNF, onCancelNF, onConfirmPayment, onCancelPayment, onDefer, onCancel, onEdit, confirmingId, cancellingId, deferringId, cancellingPaymentId }
+
   return (
     <Box sx={{ mb: 3.5 }}>
-      <Box sx={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        pb: 1, mb: 1.5, borderBottom: '2px solid', borderColor: 'divider',
-        flexWrap: 'wrap', gap: 1,
-      }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', pb: 1, mb: 1.5, borderBottom: '2px solid', borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="subtitle1" fontWeight={700} sx={{ textTransform: 'capitalize' }}>
           {formatMonthKey(group.month)}
         </Typography>
@@ -543,8 +548,7 @@ function MonthGroup({ group, onSetNF, onConfirmPayment, onDeferPayment, confirmi
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {(group.invoices || []).map(inv => (
-          <InvoiceCard key={inv.id} invoice={inv}
-            onSetNF={onSetNF} onConfirmPayment={onConfirmPayment} onDeferPayment={onDeferPayment} confirmingId={confirmingId} />
+          <InvoiceCard key={inv.id} invoice={inv} {...sharedProps} />
         ))}
       </Box>
     </Box>
@@ -628,13 +632,16 @@ function generatePrintHTML(timeline) {
 export default function ReceivablesTab() {
   const queryClient  = useQueryClient()
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
-  const [viewMode,     setViewMode]     = useState('pipeline')   // 'pipeline' | 'timeline'
+  const [viewMode,     setViewMode]     = useState('pipeline')
   const [drawerOpen,    setDrawerOpen]   = useState(false)
+  const [drawerMode,    setDrawerMode]   = useState('setNF')
   const [drawerInvoice, setDrawerInvoice] = useState(null)
-  const [confirmingId,  setConfirmingId]  = useState(null)
-  const [selectedMonth, setSelectedMonth] = useState(null)   // null = todos os meses
+  const [confirmingId,        setConfirmingId]        = useState(null)
+  const [cancellingId,        setCancellingId]        = useState(null)
+  const [deferringId,         setDeferringId]         = useState(null)
+  const [cancellingPaymentId, setCancellingPaymentId] = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState(null)
 
-  // Resetar mês selecionado ao trocar o ano
   useEffect(() => { setSelectedMonth(null) }, [selectedYear])
 
   const { data: timeline, isLoading } = useQuery({
@@ -643,37 +650,66 @@ export default function ReceivablesTab() {
     select:   (res) => res.data,
   })
 
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+    queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['forecast'] })
+    queryClient.invalidateQueries({ queryKey: ['monthly-summary'] })
+  }
+
   const confirmMutation = useMutation({
-    mutationFn: ({ paymentId }) => paymentsApi.confirm(paymentId),
-    onSuccess: () => {
-      setConfirmingId(null)
-      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['forecast'] })
-    },
-    onError: () => setConfirmingId(null),
+    mutationFn: (invoiceId) => invoicesApi.confirmPayment(invoiceId),
+    onSuccess: () => { setConfirmingId(null); invalidateAll() },
+    onError:   () => setConfirmingId(null),
+  })
+
+  const cancelNFMutation = useMutation({
+    mutationFn: (invoiceId) => invoicesApi.cancelNF(invoiceId),
+    onSuccess: () => invalidateAll(),
   })
 
   const deferMutation = useMutation({
-    mutationFn: ({ paymentId, days }) => paymentsApi.defer(paymentId, days),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['forecast'] })
-    },
+    mutationFn: ({ invoiceId, days }) => invoicesApi.defer(invoiceId, days),
+    onSuccess: () => { setDeferringId(null); invalidateAll() },
+    onError:   () => setDeferringId(null),
   })
 
-  function openSetNF(inv) { setDrawerInvoice(inv); setDrawerOpen(true) }
+  const cancelMutation = useMutation({
+    mutationFn: (invoiceId) => invoicesApi.cancel(invoiceId),
+    onSuccess: () => { setCancellingId(null); invalidateAll() },
+    onError:   () => setCancellingId(null),
+  })
 
-  function handleConfirmPayment(inv) {
-    if (inv.payment?.id) {
-      setConfirmingId(inv.id)
-      confirmMutation.mutate({ paymentId: inv.payment.id })
-    }
+  const cancelPaymentMutation = useMutation({
+    mutationFn: (invoiceId) => invoicesApi.cancelPayment(invoiceId),
+    onSuccess: () => { setCancellingPaymentId(null); invalidateAll() },
+    onError:   () => setCancellingPaymentId(null),
+  })
+
+  function openSetNF(inv)  { setDrawerMode('setNF'); setDrawerInvoice(inv); setDrawerOpen(true) }
+  function openEdit(inv)   { setDrawerMode('edit');  setDrawerInvoice(inv); setDrawerOpen(true) }
+
+  function handleConfirmPayment(invoiceId) {
+    setConfirmingId(invoiceId)
+    confirmMutation.mutate(invoiceId)
   }
 
-  function handleDeferPayment(paymentId, days) {
-    deferMutation.mutate({ paymentId, days })
+  function handleCancelNF(invoiceId) { cancelNFMutation.mutate(invoiceId) }
+
+  function handleDefer(invoiceId, days) {
+    setDeferringId(invoiceId)
+    deferMutation.mutate({ invoiceId, days })
+  }
+
+  function handleCancel(invoiceId) {
+    if (!window.confirm('Tem certeza que deseja excluir esta fatura? Esta ação não pode ser desfeita.')) return
+    setCancellingId(invoiceId)
+    cancelMutation.mutate(invoiceId)
+  }
+
+  function handleCancelPayment(invoiceId) {
+    setCancellingPaymentId(invoiceId)
+    cancelPaymentMutation.mutate(invoiceId)
   }
 
   function handleExport() {
@@ -688,17 +724,28 @@ export default function ReceivablesTab() {
   const totalReceived = (timeline || []).reduce((s, g) => s + parseFloat(g.total_received || 0), 0)
   const totalPending  = (timeline || []).reduce((s, g) => s + parseFloat(g.total_pending  || 0), 0)
 
-  // Meses disponíveis para o filtro
-  const availableMonths = (timeline || []).map(g => g.month)
-
-  // Timeline filtrada pelo mês selecionado
+  const availableMonths  = (timeline || []).map(g => g.month)
   const filteredTimeline = selectedMonth
     ? (timeline || []).filter(g => g.month === selectedMonth)
     : (timeline || [])
 
+  const sharedProps = {
+    onSetNF:          openSetNF,
+    onCancelNF:       handleCancelNF,
+    onConfirmPayment: handleConfirmPayment,
+    onCancelPayment:  handleCancelPayment,
+    onDefer:          handleDefer,
+    onCancel:         handleCancel,
+    onEdit:           openEdit,
+    confirmingId,
+    cancellingId,
+    deferringId,
+    cancellingPaymentId,
+  }
+
   return (
     <Box>
-      {/* ── Header ── */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2.5, gap: 2, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="subtitle1" fontWeight={700}>Recebíveis</Typography>
@@ -709,133 +756,82 @@ export default function ReceivablesTab() {
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {/* Toggle de visualização */}
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(_, v) => { if (v) setViewMode(v) }}
-            size="small"
-            sx={{
-              '& .MuiToggleButton-root': {
-                py: 0.5, px: 1.25, fontSize: '0.72rem', fontWeight: 600,
-                border: '1px solid', borderColor: 'divider',
-                '&.Mui-selected': { bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } },
-              },
-            }}
-          >
+          <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => { if (v) setViewMode(v) }} size="small"
+            sx={{ '& .MuiToggleButton-root': { py: 0.5, px: 1.25, fontSize: '0.72rem', fontWeight: 600, border: '1px solid', borderColor: 'divider', '&.Mui-selected': { bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } } } }}>
             <ToggleButton value="pipeline">
-              <ViewColumnIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />
-              Pipeline
+              <ViewColumnIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />Pipeline
             </ToggleButton>
             <ToggleButton value="timeline">
-              <FormatListBulletedIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />
-              Timeline
+              <FormatListBulletedIcon sx={{ fontSize: '0.9rem', mr: 0.5 }} />Timeline
             </ToggleButton>
           </ToggleButtonGroup>
 
           {/* Seletor de ano */}
           <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: '6px' }}>
-            <IconButton size="small" onClick={() => setSelectedYear(y => y - 1)}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="body2" fontWeight={700} sx={{ px: 1.5, minWidth: 46, textAlign: 'center' }}>
-              {selectedYear}
-            </Typography>
-            <IconButton size="small" onClick={() => setSelectedYear(y => y + 1)}
-              disabled={selectedYear >= new Date().getFullYear() + 1}>
+            <IconButton size="small" onClick={() => setSelectedYear(y => y - 1)}><ChevronLeftIcon fontSize="small" /></IconButton>
+            <Typography variant="body2" fontWeight={700} sx={{ px: 1.5, minWidth: 46, textAlign: 'center' }}>{selectedYear}</Typography>
+            <IconButton size="small" onClick={() => setSelectedYear(y => y + 1)} disabled={selectedYear >= new Date().getFullYear() + 1}>
               <ChevronRightIcon fontSize="small" />
             </IconButton>
           </Box>
 
           <Button variant="outlined" size="small"
             startIcon={<PictureAsPdfIcon fontSize="small" />}
-            onClick={handleExport}
-            disabled={!timeline?.length}
+            onClick={handleExport} disabled={!timeline?.length}
             sx={{ borderRadius: '6px', fontSize: '0.72rem' }}>
             Exportar PDF
           </Button>
         </Box>
       </Box>
 
-      {/* ── Cards de resumo anual ── */}
+      {/* Cards de resumo anual */}
       {!isLoading && (timeline?.length ?? 0) > 0 && (
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' },
-          gap: 1.5, mb: 2.5,
-        }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2.5 }}>
           {[
-            { label: 'Fatura gerada',   value: currency(totalBilled),   color: '#64748b', accent: '#64748b',
-              icon: <ReceiptLongIcon sx={{ fontSize: '0.9rem' }} /> },
-            { label: 'NF emitida',      value: currency(totalPending),  color: '#2563eb', accent: '#2563eb',
-              icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.9rem' }} /> },
-            { label: 'Valor recebido',  value: currency(totalReceived), color: '#16a34a', accent: '#10b981',
-              icon: <AccountBalanceWalletIcon sx={{ fontSize: '0.9rem' }} /> },
+            { label: 'Fatura gerada',  value: currency(totalBilled),   color: '#64748b', accent: '#64748b', icon: <ReceiptLongIcon sx={{ fontSize: '0.9rem' }} /> },
+            { label: 'NF emitida',     value: currency(totalPending),  color: '#2563eb', accent: '#2563eb', icon: <AssignmentTurnedInIcon sx={{ fontSize: '0.9rem' }} /> },
+            { label: 'Valor recebido', value: currency(totalReceived), color: '#16a34a', accent: '#10b981', icon: <AccountBalanceWalletIcon sx={{ fontSize: '0.9rem' }} /> },
           ].map(card => (
-            <Box key={card.label} sx={{
-              p: '10px 14px',
-              border: '1px solid', borderColor: 'divider', borderRadius: '8px',
-              borderTop: `3px solid ${card.accent}`,
-              bgcolor: 'background.paper',
-              display: 'flex', flexDirection: 'column', gap: 0.25,
-            }}>
+            <Box key={card.label} sx={{ p: '10px 14px', border: '1px solid', borderColor: 'divider', borderRadius: '8px', borderTop: `3px solid ${card.accent}`, bgcolor: 'background.paper', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
                 <Box sx={{ color: card.accent }}>{card.icon}</Box>
-                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {card.label}
-                </Typography>
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{card.label}</Typography>
               </Box>
-              <Typography fontWeight={700} sx={{ color: card.color, fontVariantNumeric: 'tabular-nums' }}>
-                {card.value}
-              </Typography>
+              <Typography fontWeight={700} sx={{ color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</Typography>
             </Box>
           ))}
         </Box>
       )}
 
-      {/* ── Filtro de mês ── */}
+      {/* Filtro de mês */}
       {!isLoading && availableMonths.length > 1 && (
-        <Box sx={{
-          display: 'flex', gap: 0.75, mb: 2,
-          overflowX: 'auto', pb: 0.5,
-          '&::-webkit-scrollbar': { height: 4 },
-          '&::-webkit-scrollbar-thumb': { borderRadius: 2, bgcolor: 'action.hover' },
-        }}>
-          <Chip
-            label="Todos"
-            size="small"
-            onClick={() => setSelectedMonth(null)}
-            variant={selectedMonth === null ? 'filled' : 'outlined'}
-            color={selectedMonth === null ? 'primary' : 'default'}
-            sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }}
-          />
+        <Box sx={{ display: 'flex', gap: 0.75, mb: 2, overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: 4 }, '&::-webkit-scrollbar-thumb': { borderRadius: 2, bgcolor: 'action.hover' } }}>
+          <Chip label="Todos" size="small" onClick={() => setSelectedMonth(null)}
+            variant={selectedMonth === null ? 'filled' : 'outlined'} color={selectedMonth === null ? 'primary' : 'default'}
+            sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }} />
           {availableMonths.map(mk => {
             const [y, m] = mk.split('-')
             const abbr   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(m) - 1]
             const label  = `${abbr}/${y.slice(2)}`
-            const isSelected = selectedMonth === mk
+            const isSel  = selectedMonth === mk
             return (
-              <Chip
-                key={mk}
-                label={label}
-                size="small"
-                onClick={() => setSelectedMonth(isSelected ? null : mk)}
-                variant={isSelected ? 'filled' : 'outlined'}
-                color={isSelected ? 'primary' : 'default'}
-                sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }}
-              />
+              <Chip key={mk} label={label} size="small"
+                onClick={() => setSelectedMonth(isSel ? null : mk)}
+                variant={isSel ? 'filled' : 'outlined'} color={isSel ? 'primary' : 'default'}
+                sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.72rem' }} />
             )
           })}
         </Box>
       )}
 
-      {/* ── Loading ── */}
+      {/* Loading */}
       {isLoading && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
           {[1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={240} />)}
         </Box>
       )}
 
-      {/* ── Empty state ── */}
+      {/* Empty */}
       {!isLoading && (!timeline || timeline.length === 0) && (
         <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: '8px' }}>
           <ReceiptLongIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
@@ -848,22 +844,14 @@ export default function ReceivablesTab() {
         </Box>
       )}
 
-      {/* ── Conteúdo ── */}
+      {/* Conteúdo */}
       {!isLoading && (timeline?.length ?? 0) > 0 && (
         viewMode === 'pipeline' ? (
-          <PipelineView
-            timeline={filteredTimeline}
-            onSetNF={openSetNF}
-            onConfirmPayment={handleConfirmPayment}
-            onDeferPayment={handleDeferPayment}
-            confirmingId={confirmingId}
-          />
+          <PipelineView timeline={filteredTimeline} {...sharedProps} />
         ) : (
           <Box>
             {filteredTimeline.map(group => (
-              <MonthGroup key={group.month} group={group}
-                onSetNF={openSetNF} onConfirmPayment={handleConfirmPayment}
-                onDeferPayment={handleDeferPayment} confirmingId={confirmingId} />
+              <MonthGroup key={group.month} group={group} {...sharedProps} />
             ))}
           </Box>
         )
@@ -872,7 +860,7 @@ export default function ReceivablesTab() {
       <InvoiceDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        mode="setNF"
+        mode={drawerMode}
         invoice={drawerInvoice}
       />
     </Box>

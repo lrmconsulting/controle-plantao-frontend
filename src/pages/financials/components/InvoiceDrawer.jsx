@@ -4,40 +4,45 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Drawer, Box, Typography, TextField, Button, IconButton,
-  MenuItem, CircularProgress, Divider, Alert,
+  MenuItem, CircularProgress, Divider, Alert, Checkbox,
+  FormControlLabel, Chip, Skeleton,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import CloseIcon              from '@mui/icons-material/Close'
+import ReceiptLongIcon        from '@mui/icons-material/ReceiptLong'
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'
+import EditIcon               from '@mui/icons-material/Edit'
+import ArrowBackIcon          from '@mui/icons-material/ArrowBack'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoicesApi } from '@/api/financials'
 import { institutionsApi } from '@/api/institutions'
 
-/* ─── Modo 1: Gerar fatura ─── */
-const generateSchema = z.object({
-  institution: z.string().min(1, 'Instituição obrigatória'),
-  month:       z.string().min(1, 'Mês obrigatório'),
-  notes:       z.string().optional(),
-})
+/* ─── helpers ─── */
+function currency(v) {
+  if (v == null) return '—'
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
 
-/* ─── Modo 2: Registrar NF ─── */
-const setNFSchema = z.object({
-  nf_number:  z.string().min(1, 'Número da NF obrigatório'),
-  issue_date: z.string().optional(),
-})
+function fmtDatetime(isoStr) {
+  if (!isoStr) return '—'
+  const d   = new Date(isoStr)
+  const day = String(d.getDate()).padStart(2, '0')
+  const mon = String(d.getMonth() + 1).padStart(2, '0')
+  const h   = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${day}/${mon} ${h}:${min}`
+}
 
 /** Converte Date → 'YYYY-MM' */
 function toMonthStr(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** Gera opções de mês: 3 meses à frente + 12 meses para trás a partir de hoje */
+/** Gera opções de mês: 3 meses à frente + 12 meses para trás */
 function buildMonthOptions() {
   const options = []
   const now = new Date()
-  // i negativo = meses futuros; i positivo = meses passados
   for (let i = -3; i < 13; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const value = toMonthStr(d)
     const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
     options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) })
@@ -45,140 +50,570 @@ function buildMonthOptions() {
   return options
 }
 
+/* ─── Schemas ─── */
+const step0Schema = z.object({
+  institution: z.string().min(1, 'Instituição obrigatória'),
+  month:       z.string().min(1, 'Mês obrigatório'),
+  notes:       z.string().optional(),
+})
+
+const setNFSchema = z.object({
+  nf_number:  z.string().min(1, 'Número da NF obrigatório'),
+  issue_date: z.string().optional(),
+})
+
+/* ─── helper: "esta entrada está selecionada?" ─── */
+function isShiftSelected(s, selectedIds) {
+  const ids = s.monthly_all_shift_ids || [s.id]
+  return ids.some((id) => selectedIds.has(id))
+}
+
+/* ─── ShiftRow ─── */
+function ShiftRow({ shift, selected, onChange }) {
+  const unit     = shift.unit_detail
+  const isMonthly = !!shift.monthly_all_shift_ids
+  const allIds   = shift.monthly_all_shift_ids || [shift.id]
+  const val      = parseFloat(shift.effective_value || 0)
+
+  const rowSx = {
+    display: 'flex', alignItems: 'center', gap: 1.5,
+    px: 1.5, py: 1,
+    cursor: 'pointer',
+    borderBottom: '1px solid', borderColor: 'divider',
+    bgcolor: selected ? 'primary.50' : 'transparent',
+    '&:hover': { bgcolor: selected ? 'primary.100' : '#f8fafc' },
+    transition: 'background 0.12s',
+  }
+
+  if (isMonthly) {
+    const count = shift.monthly_shift_count || allIds.length
+    return (
+      <Box onClick={() => onChange(allIds, !selected)} sx={rowSx}>
+        <Checkbox
+          size="small"
+          checked={selected}
+          onChange={(e) => onChange(allIds, e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          sx={{ p: 0.25 }}
+        />
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: unit?.color || '#94a3b8', flexShrink: 0 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8rem', lineHeight: 1.3 }}>
+              Cobrança mensal fixa
+            </Typography>
+            <Chip
+              label="Mensal"
+              size="small"
+              color="secondary"
+              variant="outlined"
+              sx={{ height: 16, fontSize: '0.6rem', borderRadius: '3px', lineHeight: 1 }}
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            {count} plant{count !== 1 ? 'ões' : 'ão'} no mês
+          </Typography>
+        </Box>
+        <Typography variant="body2" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem', flexShrink: 0 }}>
+          {currency(val)}
+        </Typography>
+      </Box>
+    )
+  }
+
+  /* ── Per-shift ── */
+  const start = new Date(shift.start_datetime)
+  const end   = shift.end_datetime ? new Date(shift.end_datetime) : null
+  const dur   = end ? Math.round((end - start) / 3_600_000) : null
+
+  return (
+    <Box onClick={() => onChange(allIds, !selected)} sx={rowSx}>
+      <Checkbox
+        size="small"
+        checked={selected}
+        onChange={(e) => onChange(allIds, e.target.checked)}
+        onClick={(e) => e.stopPropagation()}
+        sx={{ p: 0.25 }}
+      />
+      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: unit?.color || '#94a3b8', flexShrink: 0 }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8rem', lineHeight: 1.2 }}>
+          {fmtDatetime(shift.start_datetime)}
+          {end && ` – ${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`}
+          {dur && ` (${dur}h)`}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.68rem' }}>
+          {unit?.name || '—'}
+        </Typography>
+      </Box>
+      <Typography variant="body2" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem', flexShrink: 0 }}>
+        {currency(val)}
+      </Typography>
+    </Box>
+  )
+}
+
+/* ─── ShiftSelector ─── */
+function ShiftSelector({ shifts, selectedIds, onChange, loading }) {
+  // Agrupa por unidade (monthly já vem colapsado do backend, um item por unidade)
+  const byUnit = useMemo(() => {
+    const map = {}
+    ;(shifts || []).forEach((s) => {
+      const key = s.unit_detail?.id || s.unit_detail?.name || 'sem-unidade'
+      if (!map[key]) map[key] = { name: s.unit_detail?.name || 'Sem unidade', shifts: [] }
+      map[key].shifts.push(s)
+    })
+    return Object.values(map)
+  }, [shifts])
+
+  // Conta entradas visíveis selecionadas (não IDs individuais)
+  const selectedCount = useMemo(
+    () => (shifts || []).filter((s) => isShiftSelected(s, selectedIds)).length,
+    [shifts, selectedIds],
+  )
+
+  const total = useMemo(
+    () =>
+      (shifts || [])
+        .filter((s) => isShiftSelected(s, selectedIds))
+        .reduce((sum, s) => sum + parseFloat(s.effective_value || 0), 0),
+    [shifts, selectedIds],
+  )
+
+  function toggleUnit(unitShifts, allSelected) {
+    const next = new Set(selectedIds)
+    unitShifts.forEach((s) => {
+      const ids = s.monthly_all_shift_ids || [s.id]
+      if (allSelected) ids.forEach((id) => next.delete(id))
+      else             ids.forEach((id) => next.add(id))
+    })
+    onChange(next)
+  }
+
+  function toggleShift(ids, checked) {
+    const next = new Set(selectedIds)
+    const idList = Array.isArray(ids) ? ids : [ids]
+    idList.forEach((id) => {
+      if (checked) next.add(id)
+      else         next.delete(id)
+    })
+    onChange(next)
+  }
+
+  const allSelected = shifts?.length > 0 && shifts.every((s) => isShiftSelected(s, selectedIds))
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={48} />)}
+      </Box>
+    )
+  }
+
+  if (!shifts?.length) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4, border: '1px dashed', borderColor: 'divider', borderRadius: '8px' }}>
+        <ReceiptLongIcon sx={{ fontSize: 28, color: 'text.disabled', mb: 0.5 }} />
+        <Typography variant="body2" color="text.secondary">
+          Nenhum plantão disponível para faturamento neste mês
+        </Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <Box>
+      {/* Cabeçalho seleção global */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+          {selectedCount} de {shifts.length} {shifts.length !== 1 ? 'selecionados' : 'selecionado'}
+        </Typography>
+        <Button
+          size="small" variant="text"
+          sx={{ fontSize: '0.7rem', py: 0.2 }}
+          onClick={() => {
+            if (allSelected) {
+              onChange(new Set())
+            } else {
+              const next = new Set()
+              shifts.forEach((s) => {
+                const ids = s.monthly_all_shift_ids || [s.id]
+                ids.forEach((id) => next.add(id))
+              })
+              onChange(next)
+            }
+          }}
+        >
+          {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+        </Button>
+      </Box>
+
+      {/* Grupos por unidade */}
+      {byUnit.map((group) => {
+        const allSel  = group.shifts.every((s) => isShiftSelected(s, selectedIds))
+        const someSel = group.shifts.some((s) => isShiftSelected(s, selectedIds))
+        return (
+          <Box key={group.name} sx={{ mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: '8px', overflow: 'hidden' }}>
+            {/* Header do grupo */}
+            <Box
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 1,
+                px: 1.5, py: 0.875, bgcolor: '#f8fafc',
+                borderBottom: '1px solid', borderColor: 'divider',
+                cursor: 'pointer',
+              }}
+              onClick={() => toggleUnit(group.shifts, allSel)}
+            >
+              <Checkbox
+                size="small"
+                checked={allSel}
+                indeterminate={someSel && !allSel}
+                onChange={() => toggleUnit(group.shifts, allSel)}
+                onClick={(e) => e.stopPropagation()}
+                sx={{ p: 0.25 }}
+              />
+              <Typography variant="body2" fontWeight={700} sx={{ flex: 1, fontSize: '0.8rem' }}>
+                {group.name}
+              </Typography>
+              {/* Para unidades per_shift mostra contagem de plantões */}
+              {!group.shifts[0]?.monthly_all_shift_ids && (
+                <Chip
+                  label={`${group.shifts.length} plant${group.shifts.length !== 1 ? 'ões' : 'ão'}`}
+                  size="small"
+                  sx={{ height: 18, fontSize: '0.62rem', borderRadius: '4px' }}
+                />
+              )}
+            </Box>
+            {/* Plantões / entrada mensal */}
+            {group.shifts.map((shift) => (
+              <ShiftRow
+                key={shift.id}
+                shift={shift}
+                selected={isShiftSelected(shift, selectedIds)}
+                onChange={toggleShift}
+              />
+            ))}
+          </Box>
+        )
+      })}
+
+      {/* Resumo de total */}
+      {selectedCount > 0 && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: 1.5, py: 1, bgcolor: 'primary.50',
+          border: '1px solid', borderColor: 'primary.200', borderRadius: '8px', mt: 0.5,
+        }}>
+          <Typography variant="body2" color="primary.dark" fontWeight={600} sx={{ fontSize: '0.8rem' }}>
+            Total selecionado ({selectedIds.size} plant{selectedIds.size !== 1 ? 'ões' : 'ão'})
+          </Typography>
+          <Typography variant="body2" fontWeight={800} color="primary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {currency(total)}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/* ═══════════════════════════ COMPONENTE PRINCIPAL ═══════════════════════════ */
 export default function InvoiceDrawer({
   open,
   onClose,
-  /** 'generate' | 'setNF' */
+  /** 'generate' | 'edit' | 'setNF' */
   mode = 'generate',
-  /** Fatura existente (obrigatório no modo setNF) */
+  /** Fatura existente (obrigatório nos modos edit e setNF) */
   invoice = null,
   /** Mês pré-selecionado no modo generate */
   initialMonth = null,
 }) {
   const queryClient = useQueryClient()
   const [serverError, setServerError] = useState(null)
+  const [step, setStep] = useState(0)           // 0 = params, 1 = shift selection
+  const [selectedIds, setSelectedIds] = useState(new Set())
 
-  // Calculado no render para sempre refletir a data atual
   const MONTH_OPTIONS = useMemo(() => buildMonthOptions(), [])
 
-  /* ── Instituições (modo generate) ── */
+  const isGenerate = mode === 'generate'
+  const isEdit     = mode === 'edit'
+  const isSetNF    = mode === 'setNF'
+
+  /* ── Instituições ── */
   const { data: institutions } = useQuery({
     queryKey: ['institutions'],
-    queryFn: () => institutionsApi.list({ is_active: true }),
-    select: (res) => res.data.results ?? res.data,
-    enabled: mode === 'generate',
+    queryFn:  () => institutionsApi.list({ is_active: true }),
+    select:   (res) => res.data.results ?? res.data,
+    enabled:  isGenerate,
   })
 
-  /* ── Form gerar fatura ── */
-  const generateForm = useForm({
-    resolver: zodResolver(generateSchema),
-    defaultValues: { institution: '', month: initialMonth || toMonthStr(new Date()), notes: '' },
+  /* ── Step 0 form ── */
+  const step0Form = useForm({
+    resolver: zodResolver(step0Schema),
+    defaultValues: {
+      institution: '',
+      month: initialMonth || toMonthStr(new Date()),
+      notes: '',
+    },
   })
 
-  /* ── Form registrar NF ── */
+  const watchInstitution = step0Form.watch('institution')
+  const watchMonth       = step0Form.watch('month')
+
+  /* ── Plantões disponíveis (step 1 de generate) ── */
+  const { data: availableShifts, isLoading: shiftsLoading } = useQuery({
+    queryKey: ['available-shifts', watchInstitution, watchMonth],
+    queryFn:  () => invoicesApi.availableShifts({ institution: watchInstitution, month: watchMonth }),
+    select:   (res) => res.data,
+    enabled:  isGenerate && step === 1 && !!watchInstitution && !!watchMonth,
+  })
+
+  /* ── Plantões da fatura + disponíveis (modo edit) ── */
+  const currentShiftIds = useMemo(() => {
+    if (!invoice?.invoice_shifts) return new Set()
+    return new Set(invoice.invoice_shifts.map((is) => String(is.shift)))
+  }, [invoice])
+
+  // Para edição: plantões disponíveis + os que já estão na fatura
+  const { data: editAvailableShifts, isLoading: editShiftsLoading } = useQuery({
+    queryKey: ['available-shifts-edit', invoice?.institution, invoice?.reference_month?.slice(0, 7)],
+    queryFn:  () => invoicesApi.availableShifts({
+      institution: invoice.institution,
+      month: invoice.reference_month.slice(0, 7),
+    }),
+    select: (res) => res.data,
+    enabled: isEdit && open && !!invoice,
+  })
+
+  /* ── setNF form ── */
   const setNFForm = useForm({
     resolver: zodResolver(setNFSchema),
     defaultValues: { nf_number: '', issue_date: '' },
   })
 
+  /* ── Reset ao abrir ── */
   useEffect(() => {
-    if (open) {
-      setServerError(null)
-      if (mode === 'generate') {
-        generateForm.reset({
-          institution: '',
-          month: initialMonth || toMonthStr(new Date()),
-          notes: '',
-        })
-      } else {
-        setNFForm.reset({ nf_number: invoice?.nf_number || '', issue_date: '' })
-      }
+    if (!open) return
+    setServerError(null)
+    setStep(0)
+    if (isGenerate) {
+      step0Form.reset({ institution: '', month: initialMonth || toMonthStr(new Date()), notes: '' })
+      setSelectedIds(new Set())
+    } else if (isEdit && invoice) {
+      setSelectedIds(new Set(currentShiftIds))
+    } else if (isSetNF) {
+      setNFForm.reset({ nf_number: invoice?.nf_number || '', issue_date: '' })
     }
-  }, [open, mode, initialMonth, invoice])
+  }, [open, mode, invoice])
 
-  /* ── Mutação gerar ── */
+  /* ── Mutations ── */
+  function invalidate(refMonth) {
+    queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    if (refMonth) queryClient.invalidateQueries({ queryKey: ['invoices', refMonth] })
+    queryClient.invalidateQueries({ queryKey: ['forecast'] })
+    queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+    queryClient.invalidateQueries({ queryKey: ['monthly-summary'] })
+  }
+
   const generateMutation = useMutation({
     mutationFn: (data) => invoicesApi.generate(data),
     onSuccess: (res) => {
-      const month = res.data.reference_month?.slice(0, 7)
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices', month] })
-      queryClient.invalidateQueries({ queryKey: ['forecast'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+      invalidate(res.data.reference_month?.slice(0, 7))
       onClose()
     },
-    onError: (err) => {
-      setServerError(err.response?.data?.detail || 'Erro ao gerar fatura.')
-    },
+    onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao gerar fatura.'),
   })
 
-  /* ── Mutação set-nf ── */
+  const editMutation = useMutation({
+    mutationFn: ({ id, shift_ids }) => invoicesApi.editShifts(id, shift_ids),
+    onSuccess: (res) => {
+      invalidate(res.data.reference_month?.slice(0, 7))
+      onClose()
+    },
+    onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao editar plantões.'),
+  })
+
   const setNFMutation = useMutation({
     mutationFn: (data) => invoicesApi.setNF(invoice.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['forecast'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices-timeline'] })
+    onSuccess: (res) => {
+      invalidate(res.data.reference_month?.slice(0, 7))
       onClose()
     },
-    onError: (err) => {
-      setServerError(err.response?.data?.detail || 'Erro ao registrar NF.')
-    },
+    onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao registrar NF.'),
   })
 
-  const isGenerate = mode === 'generate'
-  const isPending  = isGenerate ? generateMutation.isPending : setNFMutation.isPending
+  const isPending = generateMutation.isPending || editMutation.isPending || setNFMutation.isPending
 
-  function onSubmit(data) {
+  /* ── Handlers ── */
+  function handleStep0Next(data) {
     setServerError(null)
-    if (isGenerate) generateMutation.mutate(data)
-    else setNFMutation.mutate(data)
+    setStep(1)
+    // Pré-seleciona todos
+    setSelectedIds(new Set())
   }
 
+  // Quando os plantões disponíveis carregam no step 1, pré-seleciona todos
+  // Para unidades mensais inclui todos os IDs individuais (monthly_all_shift_ids)
+  useEffect(() => {
+    if (step === 1 && isGenerate && availableShifts) {
+      const next = new Set()
+      availableShifts.forEach((s) => {
+        const ids = s.monthly_all_shift_ids || [s.id]
+        ids.forEach((id) => next.add(id))
+      })
+      setSelectedIds(next)
+    }
+  }, [availableShifts, step, isGenerate])
+
+  function handleGenerate() {
+    const values = step0Form.getValues()
+    if (selectedIds.size === 0) {
+      setServerError('Selecione pelo menos um plantão para faturar.')
+      return
+    }
+    setServerError(null)
+    generateMutation.mutate({
+      institution: values.institution,
+      month:       values.month,
+      notes:       values.notes || '',
+      shift_ids:   Array.from(selectedIds),
+    })
+  }
+
+  function handleEdit() {
+    if (selectedIds.size === 0) {
+      setServerError('Selecione pelo menos um plantão.')
+      return
+    }
+    setServerError(null)
+    editMutation.mutate({ id: invoice.id, shift_ids: Array.from(selectedIds) })
+  }
+
+  function handleSetNF(data) {
+    setServerError(null)
+    setNFMutation.mutate(data)
+  }
+
+  /* ── Título / ícone ── */
+  const drawerTitle = isGenerate ? 'Gerar fatura'
+    : isEdit ? 'Editar plantões da fatura'
+    : 'Registrar NF emitida'
+
+  const drawerSubtitle = isGenerate
+    ? (step === 0 ? 'Selecione a instituição e o período' : 'Escolha os plantões a incluir')
+    : isEdit
+    ? `${invoice?.institution_detail?.name} · ${invoice?.reference_month_display}`
+    : `${invoice?.institution_detail?.name} · ${invoice?.reference_month_display}`
+
+  const drawerIcon = isSetNF ? <AssignmentTurnedInIcon fontSize="small" />
+    : isEdit ? <EditIcon fontSize="small" />
+    : <ReceiptLongIcon fontSize="small" />
+
+  /* ── Shifts para o seletor no modo edit ──
+     Combina: os que já estão na fatura + os disponíveis (sem duplicatas).
+     Unidades mensais são colapsadas em uma única entrada por unidade. */
+  const editAllShifts = useMemo(() => {
+    if (!invoice?.invoice_shifts) return editAvailableShifts || []
+    const available = editAvailableShifts || []
+
+    // Coleta todos os IDs cobertos por "available" (incluindo monthly_all_shift_ids)
+    const availableCoveredIds = new Set()
+    available.forEach((s) => {
+      const ids = s.monthly_all_shift_ids || [s.id]
+      ids.forEach((id) => availableCoveredIds.add(String(id)))
+    })
+
+    // InvoiceShifts que NÃO aparecem em available (ainda estão na fatura, não mais disponíveis)
+    const notCovered = invoice.invoice_shifts.filter(
+      (is) => !availableCoveredIds.has(String(is.shift))
+    )
+
+    if (notCovered.length === 0) return available
+
+    // Agrupa por unidade para colapsar mensais
+    const byUnitKey = {}
+    notCovered.forEach((is) => {
+      const billingType = is.unit_billing_type || 'per_shift'
+      if (billingType === 'monthly') {
+        const key = `monthly::${is.unit_name}`
+        if (!byUnitKey[key]) byUnitKey[key] = { isMonthly: true, items: [], unitName: is.unit_name, unitColor: is.unit_color, totalValue: 0 }
+        byUnitKey[key].items.push(is)
+        byUnitKey[key].totalValue += parseFloat(is.value || 0)
+      } else {
+        const key = `per_shift::${is.shift}`
+        byUnitKey[key] = { isMonthly: false, items: [is], unitName: is.unit_name, unitColor: is.unit_color, totalValue: parseFloat(is.value || 0) }
+      }
+    })
+
+    const current = Object.values(byUnitKey).map((group) => {
+      if (group.isMonthly) {
+        const rep = group.items[0]
+        return {
+          id: String(rep.shift),
+          start_datetime: rep.shift_date,
+          end_datetime:   rep.shift_end_date,
+          effective_value: group.totalValue,
+          unit_detail: { name: group.unitName, color: group.unitColor, billing_type: 'monthly' },
+          monthly_all_shift_ids: group.items.map((is) => String(is.shift)),
+          monthly_shift_count: group.items.length,
+        }
+      }
+      const is = group.items[0]
+      return {
+        id: String(is.shift),
+        start_datetime: is.shift_date,
+        end_datetime:   is.shift_end_date,
+        effective_value: is.value,
+        unit_detail: { name: group.unitName, color: group.unitColor, billing_type: 'per_shift' },
+      }
+    })
+
+    return [...current, ...available]
+  }, [invoice, editAvailableShifts])
+
+  /* ──────────────────────── RENDER ──────────────────────── */
   return (
     <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: '100%', sm: 440 }, maxWidth: '100vw', p: 0, overflowX: 'hidden' } }}
+      PaperProps={{ sx: { width: { xs: '100%', sm: 480 }, maxWidth: '100vw', p: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
       {/* Header */}
-      <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {isGenerate && step === 1 && (
+            <IconButton size="small" onClick={() => setStep(0)} sx={{ mr: 0.5 }}>
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+          )}
           <Box sx={{ p: 1, borderRadius: '8px', bgcolor: '#f0fdfa', color: 'primary.main', display: 'flex' }}>
-            {isGenerate ? <ReceiptLongIcon fontSize="small" /> : <AssignmentTurnedInIcon fontSize="small" />}
+            {drawerIcon}
           </Box>
           <Box>
-            <Typography variant="h6" fontWeight={700}>
-              {isGenerate ? 'Gerar fatura' : 'Registrar NF emitida'}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {isGenerate
-                ? 'Consolida plantões de um mês em uma fatura'
-                : `Fatura: ${invoice?.institution_detail?.name} · ${invoice?.reference_month_display}`}
-            </Typography>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: '1rem' }}>{drawerTitle}</Typography>
+            <Typography variant="caption" color="text.secondary">{drawerSubtitle}</Typography>
           </Box>
         </Box>
         <IconButton onClick={onClose} size="small"><CloseIcon fontSize="small" /></IconButton>
       </Box>
 
-      {/* ═══ MODO GERAR FATURA ═══ */}
-      {isGenerate && (
+      {/* ══ MODO: GERAR FATURA — Step 0 ══ */}
+      {isGenerate && step === 0 && (
         <Box
           component="form"
-          onSubmit={generateForm.handleSubmit(onSubmit)}
+          onSubmit={step0Form.handleSubmit(handleStep0Next)}
           sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}
         >
           <Controller
             name="institution"
-            control={generateForm.control}
+            control={step0Form.control}
             render={({ field }) => (
               <TextField
                 {...field}
                 select
                 label="Instituição pagadora"
-                error={!!generateForm.formState.errors.institution}
-                helperText={generateForm.formState.errors.institution?.message}
+                error={!!step0Form.formState.errors.institution}
+                helperText={step0Form.formState.errors.institution?.message}
               >
                 {(institutions || []).map((inst) => (
                   <MenuItem key={inst.id} value={inst.id}>{inst.name}</MenuItem>
@@ -189,14 +624,14 @@ export default function InvoiceDrawer({
 
           <Controller
             name="month"
-            control={generateForm.control}
+            control={step0Form.control}
             render={({ field }) => (
               <TextField
                 {...field}
                 select
                 label="Mês de referência"
-                error={!!generateForm.formState.errors.month}
-                helperText={generateForm.formState.errors.month?.message}
+                error={!!step0Form.formState.errors.month}
+                helperText={step0Form.formState.errors.month?.message}
               >
                 {MONTH_OPTIONS.map((o) => (
                   <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
@@ -208,26 +643,54 @@ export default function InvoiceDrawer({
           <TextField
             label="Observações (opcional)"
             multiline
-            rows={3}
-            {...generateForm.register('notes')}
+            rows={2}
+            {...step0Form.register('notes')}
           />
-
-          {serverError && <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>}
         </Box>
       )}
 
-      {/* ═══ MODO REGISTRAR NF ═══ */}
-      {!isGenerate && (
+      {/* ══ MODO: GERAR FATURA — Step 1 (shift selection) ══ */}
+      {isGenerate && step === 1 && (
+        <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {serverError && (
+            <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>
+          )}
+          <ShiftSelector
+            shifts={availableShifts}
+            selectedIds={selectedIds}
+            onChange={setSelectedIds}
+            loading={shiftsLoading}
+          />
+        </Box>
+      )}
+
+      {/* ══ MODO: EDITAR PLANTÕES ══ */}
+      {isEdit && (
+        <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {serverError && (
+            <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>
+          )}
+          <ShiftSelector
+            shifts={editAllShifts}
+            selectedIds={selectedIds}
+            onChange={setSelectedIds}
+            loading={editShiftsLoading}
+          />
+        </Box>
+      )}
+
+      {/* ══ MODO: REGISTRAR NF ══ */}
+      {isSetNF && (
         <Box
           component="form"
-          onSubmit={setNFForm.handleSubmit(onSubmit)}
+          onSubmit={setNFForm.handleSubmit(handleSetNF)}
           sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}
         >
           {invoice && (
             <Box sx={{ p: 2, borderRadius: '8px', bgcolor: '#f8fafc', border: '1px solid', borderColor: 'divider' }}>
               <Typography variant="caption" color="text.secondary" display="block">Valor da fatura</Typography>
               <Typography variant="h5" fontWeight={700} color="primary.main">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(invoice.total_value)}
+                {currency(invoice.total_value)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {invoice.shift_count} plantão{invoice.shift_count !== 1 ? 'ões' : ''}
@@ -236,9 +699,7 @@ export default function InvoiceDrawer({
           )}
 
           <Divider>
-            <Typography variant="caption" color="text.secondary" sx={{ px: 1 }}>
-              Dados da NF
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 1 }}>Dados da NF</Typography>
           </Divider>
 
           <TextField
@@ -263,22 +724,52 @@ export default function InvoiceDrawer({
       )}
 
       {/* Footer */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
-        <Button variant="outlined" onClick={onClose}>Cancelar</Button>
-        <Button
-          variant="contained"
-          onClick={isGenerate
-            ? generateForm.handleSubmit(onSubmit)
-            : setNFForm.handleSubmit(onSubmit)
-          }
-          disabled={isPending}
-          sx={{ minWidth: 130 }}
-        >
-          {isPending
-            ? <CircularProgress size={18} color="inherit" />
-            : isGenerate ? 'Gerar fatura' : 'Registrar NF'
-          }
-        </Button>
+      <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end', flexShrink: 0 }}>
+        <Button variant="outlined" onClick={onClose} disabled={isPending}>Cancelar</Button>
+
+        {isGenerate && step === 0 && (
+          <Button
+            variant="contained"
+            onClick={step0Form.handleSubmit(handleStep0Next)}
+            disabled={isPending}
+            sx={{ minWidth: 120 }}
+          >
+            Próximo →
+          </Button>
+        )}
+
+        {isGenerate && step === 1 && (
+          <Button
+            variant="contained"
+            onClick={handleGenerate}
+            disabled={isPending || selectedIds.size === 0}
+            sx={{ minWidth: 130 }}
+          >
+            {isPending ? <CircularProgress size={18} color="inherit" /> : `Gerar fatura (${selectedIds.size})`}
+          </Button>
+        )}
+
+        {isEdit && (
+          <Button
+            variant="contained"
+            onClick={handleEdit}
+            disabled={isPending || selectedIds.size === 0}
+            sx={{ minWidth: 130 }}
+          >
+            {isPending ? <CircularProgress size={18} color="inherit" /> : 'Salvar alterações'}
+          </Button>
+        )}
+
+        {isSetNF && (
+          <Button
+            variant="contained"
+            onClick={setNFForm.handleSubmit(handleSetNF)}
+            disabled={isPending}
+            sx={{ minWidth: 130 }}
+          >
+            {isPending ? <CircularProgress size={18} color="inherit" /> : 'Registrar NF'}
+          </Button>
+        )}
       </Box>
     </Drawer>
   )
