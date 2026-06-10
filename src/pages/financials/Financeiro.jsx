@@ -208,53 +208,63 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
 
         {/* Ações por status */}
         {(isDraft || isIssued || isPaid) && (
-          <Box sx={{ display: 'flex', gap: 0.875, pt: 1.25, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            {isDraft && (
-              <>
-                <Button size="small" variant="contained" onClick={() => onSetNF(invoice)}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
-                  Registrar NF
-                </Button>
-                <Button size="small" variant="outlined" startIcon={<EditIcon sx={{ fontSize: 13 }} />}
-                  onClick={() => onEdit(invoice)}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
-                  Editar
-                </Button>
-                <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
-                <Button size="small" variant="outlined" color="error"
-                  startIcon={cancelling === invoice.id ? null : <DeleteOutlineIcon sx={{ fontSize: 13 }} />}
-                  onClick={() => onCancel(invoice.id)}
-                  disabled={cancelling === invoice.id}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, ml: 'auto' }}>
-                  {cancelling === invoice.id ? <CircularProgress size={13} color="error" /> : 'Cancelar'}
-                </Button>
-              </>
-            )}
-            {isIssued && (
-              <>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 0.875, pt: 1.25, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap',
+          }}>
+            {/* Grupo esquerdo — ações primárias */}
+            <Box sx={{ display: 'flex', gap: 0.875, flexWrap: 'wrap' }}>
+              {isDraft && (
+                <>
+                  <Button size="small" variant="contained" onClick={() => onSetNF(invoice)}
+                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                    Registrar NF
+                  </Button>
+                  <Button size="small" variant="outlined" startIcon={<EditIcon sx={{ fontSize: 13 }} />}
+                    onClick={() => onEdit(invoice)}
+                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                    Editar
+                  </Button>
+                  <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
+                </>
+              )}
+              {isIssued && (
+                <>
+                  <Button size="small" variant="outlined"
+                    startIcon={<CancelIcon sx={{ fontSize: 13 }} />}
+                    onClick={() => onCancelNF(invoice.id)}
+                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
+                    Cancelar NF
+                  </Button>
+                  <Button size="small" variant="contained" color="success"
+                    startIcon={confirming === invoice.id ? null : <CheckCircleOutlineIcon sx={{ fontSize: 13 }} />}
+                    onClick={() => onConfirmPayment(invoice.id)}
+                    disabled={confirming === invoice.id}
+                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                    {confirming === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Confirmar pagamento'}
+                  </Button>
+                  <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
+                </>
+              )}
+              {isPaid && (
                 <Button size="small" variant="outlined"
-                  startIcon={<CancelIcon sx={{ fontSize: 13 }} />}
-                  onClick={() => onCancelNF(invoice.id)}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
-                  Cancelar NF
+                  startIcon={cancellingPayment === invoice.id ? null : <UndoIcon sx={{ fontSize: 13 }} />}
+                  onClick={() => onCancelPayment(invoice.id)}
+                  disabled={cancellingPayment === invoice.id}
+                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
+                  {cancellingPayment === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Cancelar pagamento'}
                 </Button>
-                <Button size="small" variant="contained" color="success"
-                  startIcon={confirming === invoice.id ? null : <CheckCircleOutlineIcon sx={{ fontSize: 13 }} />}
-                  onClick={() => onConfirmPayment(invoice.id)}
-                  disabled={confirming === invoice.id}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
-                  {confirming === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Confirmar pagamento'}
-                </Button>
-                <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
-              </>
-            )}
-            {isPaid && (
-              <Button size="small" variant="outlined"
-                startIcon={cancellingPayment === invoice.id ? null : <UndoIcon sx={{ fontSize: 13 }} />}
-                onClick={() => onCancelPayment(invoice.id)}
-                disabled={cancellingPayment === invoice.id}
-                sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
-                {cancellingPayment === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Cancelar pagamento'}
+              )}
+            </Box>
+
+            {/* Grupo direito — ação destrutiva (somente rascunho) */}
+            {isDraft && (
+              <Button size="small" variant="outlined" color="error"
+                startIcon={cancelling === invoice.id ? null : <DeleteOutlineIcon sx={{ fontSize: 13 }} />}
+                onClick={() => onCancel(invoice.id)}
+                disabled={cancelling === invoice.id}
+                sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                {cancelling === invoice.id ? <CircularProgress size={13} color="error" /> : 'Cancelar'}
               </Button>
             )}
           </Box>
