@@ -418,6 +418,21 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
         </Box>
       </Box>
 
+      {/* Itens adicionais */}
+      {invoice.extra_items?.length > 0 && (
+        <Box sx={{ px: 2, py: 1, borderTop: '1px solid', borderColor: 'divider', bgcolor: '#fafafa' }}>
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, display: 'block', mb: 0.5 }}>
+            Valores adicionais
+          </Typography>
+          {invoice.extra_items.map((item) => (
+            <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>{item.description}</Typography>
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.72rem', fontVariantNumeric: 'tabular-nums' }}>{currency(item.value)}</Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+
       {/* Footer com ações */}
       <Box sx={{ px: 2, py: '8px', bgcolor: '#f8fafc', borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {shifts.length > 0 && (

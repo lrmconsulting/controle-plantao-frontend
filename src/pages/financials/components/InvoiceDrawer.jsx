@@ -5,13 +5,15 @@ import { z } from 'zod'
 import {
   Drawer, Box, Typography, TextField, Button, IconButton,
   MenuItem, CircularProgress, Divider, Alert, Checkbox,
-  FormControlLabel, Chip, Skeleton,
+  FormControlLabel, Chip, Skeleton, InputAdornment,
 } from '@mui/material'
 import CloseIcon              from '@mui/icons-material/Close'
 import ReceiptLongIcon        from '@mui/icons-material/ReceiptLong'
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'
 import EditIcon               from '@mui/icons-material/Edit'
 import ArrowBackIcon          from '@mui/icons-material/ArrowBack'
+import AddIcon                from '@mui/icons-material/Add'
+import DeleteOutlineIcon      from '@mui/icons-material/DeleteOutline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoicesApi } from '@/api/financials'
 import { institutionsApi } from '@/api/institutions'
@@ -316,6 +318,104 @@ function ShiftSelector({ shifts, selectedIds, onChange, loading }) {
   )
 }
 
+/* ─── ExtraItemsEditor ─── */
+function ExtraItemsEditor({ items, onChange }) {
+  function addItem() {
+    onChange([...items, { description: '', value: '' }])
+  }
+  function removeItem(idx) {
+    onChange(items.filter((_, i) => i !== idx))
+  }
+  function updateItem(idx, field, val) {
+    const next = [...items]
+    next[idx] = { ...next[idx], [field]: val }
+    onChange(next)
+  }
+
+  const total = items.reduce((s, item) => s + parseFloat(item.value || 0), 0)
+
+  return (
+    <Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+        Adicione valores adicionais não vinculados a plantões: comissões administrativas,
+        diárias de sobreaviso, reembolsos, etc.
+      </Typography>
+
+      {items.length === 0 ? (
+        <Box sx={{
+          textAlign: 'center', py: 3.5,
+          border: '1px dashed', borderColor: 'divider', borderRadius: '8px', mb: 2,
+        }}>
+          <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.8rem' }}>
+            Nenhum valor adicional
+          </Typography>
+          <Typography variant="caption" color="text.disabled">
+            Clique em "Adicionar item" para incluir
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, mb: 2 }}>
+          {items.map((item, idx) => (
+            <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                size="small"
+                label="Descrição"
+                placeholder="Ex: Comissão administrativa"
+                value={item.description}
+                onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                sx={{ flex: 2 }}
+              />
+              <TextField
+                size="small"
+                label="Valor (R$)"
+                type="number"
+                value={item.value}
+                onChange={(e) => updateItem(idx, 'value', e.target.value)}
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> },
+                  htmlInput: { min: 0, step: '0.01' },
+                }}
+                sx={{ flex: 1, minWidth: 110 }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => removeItem(idx)}
+                sx={{ mt: 0.5, color: 'error.main', '&:hover': { bgcolor: 'error.50' } }}
+              >
+                <DeleteOutlineIcon sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      <Button
+        size="small" variant="outlined"
+        startIcon={<AddIcon />}
+        onClick={addItem}
+        sx={{ borderRadius: '6px', fontSize: '0.75rem' }}
+      >
+        Adicionar item
+      </Button>
+
+      {total > 0 && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: 1.5, py: 1, bgcolor: 'secondary.50',
+          border: '1px solid', borderColor: 'secondary.200', borderRadius: '8px', mt: 2,
+        }}>
+          <Typography variant="body2" fontWeight={600} color="secondary.dark" sx={{ fontSize: '0.8rem' }}>
+            Total adicional ({items.length} {items.length === 1 ? 'item' : 'itens'})
+          </Typography>
+          <Typography variant="body2" fontWeight={800} color="secondary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {currency(total)}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
 /* ═══════════════════════════ COMPONENTE PRINCIPAL ═══════════════════════════ */
 export default function InvoiceDrawer({
   open,
@@ -329,8 +429,11 @@ export default function InvoiceDrawer({
 }) {
   const queryClient = useQueryClient()
   const [serverError, setServerError] = useState(null)
-  const [step, setStep] = useState(0)           // 0 = params, 1 = shift selection
+  const [step, setStep] = useState(0)
+  // generate: 0=params 1=shifts 2=extras | edit: 0=shifts 1=extras
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [extraItems,  setExtraItems]  = useState([])   // [{description, value}]
+  const [editPending, setEditPending] = useState(false)
 
   const MONTH_OPTIONS = useMemo(() => buildMonthOptions(), [])
 
@@ -398,8 +501,12 @@ export default function InvoiceDrawer({
     if (isGenerate) {
       step0Form.reset({ institution: '', month: initialMonth || toMonthStr(new Date()), notes: '' })
       setSelectedIds(new Set())
+      setExtraItems([])
     } else if (isEdit && invoice) {
-      setSelectedIds(new Set(currentShiftIds))
+      setSelectedIds(new Set(invoice.invoice_shifts?.map((is) => String(is.shift)) || []))
+      setExtraItems(
+        (invoice.extra_items || []).map((e) => ({ description: e.description, value: String(e.value) }))
+      )
     } else if (isSetNF) {
       setNFForm.reset({ nf_number: invoice?.nf_number || '', issue_date: '' })
     }
@@ -423,15 +530,6 @@ export default function InvoiceDrawer({
     onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao gerar fatura.'),
   })
 
-  const editMutation = useMutation({
-    mutationFn: ({ id, shift_ids }) => invoicesApi.editShifts(id, shift_ids),
-    onSuccess: (res) => {
-      invalidate(res.data.reference_month?.slice(0, 7))
-      onClose()
-    },
-    onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao editar plantões.'),
-  })
-
   const setNFMutation = useMutation({
     mutationFn: (data) => invoicesApi.setNF(invoice.id, data),
     onSuccess: (res) => {
@@ -441,18 +539,21 @@ export default function InvoiceDrawer({
     onError: (err) => setServerError(err.response?.data?.detail || 'Erro ao registrar NF.'),
   })
 
-  const isPending = generateMutation.isPending || editMutation.isPending || setNFMutation.isPending
+  const isPending = generateMutation.isPending || setNFMutation.isPending || editPending
+
+  /* ── Helpers ── */
+  function validExtras(items) {
+    return items.filter((i) => i.description.trim() && parseFloat(i.value || 0) > 0)
+  }
 
   /* ── Handlers ── */
-  function handleStep0Next(data) {
+  function handleStep0Next() {
     setServerError(null)
     setStep(1)
-    // Pré-seleciona todos
     setSelectedIds(new Set())
   }
 
-  // Quando os plantões disponíveis carregam no step 1, pré-seleciona todos
-  // Para unidades mensais inclui todos os IDs individuais (monthly_all_shift_ids)
+  // Quando os plantões disponíveis carregam no step 1 (generate), pré-seleciona todos
   useEffect(() => {
     if (step === 1 && isGenerate && availableShifts) {
       const next = new Set()
@@ -464,28 +565,47 @@ export default function InvoiceDrawer({
     }
   }, [availableShifts, step, isGenerate])
 
-  function handleGenerate() {
-    const values = step0Form.getValues()
+  // generate: shift step → extras step
+  function handleShiftsNext() {
     if (selectedIds.size === 0) {
       setServerError('Selecione pelo menos um plantão para faturar.')
       return
     }
+    setServerError(null)
+    setStep(2)
+  }
+
+  // generate: submit final (step 2)
+  function handleGenerate() {
+    const values = step0Form.getValues()
     setServerError(null)
     generateMutation.mutate({
       institution: values.institution,
       month:       values.month,
       notes:       values.notes || '',
       shift_ids:   Array.from(selectedIds),
+      extra_items: validExtras(extraItems),
     })
   }
 
-  function handleEdit() {
+  // edit: submit final (step 1)
+  async function handleEdit() {
     if (selectedIds.size === 0) {
       setServerError('Selecione pelo menos um plantão.')
       return
     }
     setServerError(null)
-    editMutation.mutate({ id: invoice.id, shift_ids: Array.from(selectedIds) })
+    setEditPending(true)
+    try {
+      await invoicesApi.editShifts(invoice.id, Array.from(selectedIds))
+      await invoicesApi.editExtras(invoice.id, validExtras(extraItems))
+      invalidate(invoice.reference_month?.slice(0, 7))
+      onClose()
+    } catch (err) {
+      setServerError(err.response?.data?.detail || 'Erro ao editar fatura.')
+    } finally {
+      setEditPending(false)
+    }
   }
 
   function handleSetNF(data) {
@@ -493,20 +613,31 @@ export default function InvoiceDrawer({
     setNFMutation.mutate(data)
   }
 
-  /* ── Título / ícone ── */
+  /* ── Título / ícone / step indicator ── */
   const drawerTitle = isGenerate ? 'Gerar fatura'
-    : isEdit ? 'Editar plantões da fatura'
+    : isEdit ? 'Editar fatura'
     : 'Registrar NF emitida'
 
+  const GENERATE_SUBTITLES = [
+    'Selecione a instituição e o período',
+    'Escolha os plantões a incluir',
+    'Valores adicionais (opcional)',
+  ]
+  const EDIT_SUBTITLES = ['Plantões da fatura', 'Valores adicionais']
+
   const drawerSubtitle = isGenerate
-    ? (step === 0 ? 'Selecione a instituição e o período' : 'Escolha os plantões a incluir')
+    ? GENERATE_SUBTITLES[step] || ''
     : isEdit
-    ? `${invoice?.institution_detail?.name} · ${invoice?.reference_month_display}`
+    ? EDIT_SUBTITLES[step] || ''
     : `${invoice?.institution_detail?.name} · ${invoice?.reference_month_display}`
 
   const drawerIcon = isSetNF ? <AssignmentTurnedInIcon fontSize="small" />
     : isEdit ? <EditIcon fontSize="small" />
     : <ReceiptLongIcon fontSize="small" />
+
+  // Indica visualmente em qual passo o usuário está
+  const totalSteps   = isGenerate ? 3 : isEdit ? 2 : 1
+  const showProgress = (isGenerate || isEdit) && !isSetNF
 
   /* ── Shifts para o seletor no modo edit ──
      Combina: os que já estão na fatura + os disponíveis (sem duplicatas).
@@ -581,8 +712,9 @@ export default function InvoiceDrawer({
       {/* Header */}
       <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {isGenerate && step === 1 && (
-            <IconButton size="small" onClick={() => setStep(0)} sx={{ mr: 0.5 }}>
+          {/* Botão voltar (generate step>0 ou edit step>0) */}
+          {((isGenerate && step > 0) || (isEdit && step > 0)) && (
+            <IconButton size="small" onClick={() => { setStep(s => s - 1); setServerError(null) }} sx={{ mr: 0.5 }}>
               <ArrowBackIcon fontSize="small" />
             </IconButton>
           )}
@@ -590,7 +722,14 @@ export default function InvoiceDrawer({
             {drawerIcon}
           </Box>
           <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: '1rem' }}>{drawerTitle}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: '1rem' }}>{drawerTitle}</Typography>
+              {showProgress && (
+                <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem' }}>
+                  {step + 1}/{totalSteps}
+                </Typography>
+              )}
+            </Box>
             <Typography variant="caption" color="text.secondary">{drawerSubtitle}</Typography>
           </Box>
         </Box>
@@ -664,8 +803,18 @@ export default function InvoiceDrawer({
         </Box>
       )}
 
-      {/* ══ MODO: EDITAR PLANTÕES ══ */}
-      {isEdit && (
+      {/* ══ MODO: GERAR FATURA — Step 2 (extras) ══ */}
+      {isGenerate && step === 2 && (
+        <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {serverError && (
+            <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>
+          )}
+          <ExtraItemsEditor items={extraItems} onChange={setExtraItems} />
+        </Box>
+      )}
+
+      {/* ══ MODO: EDITAR — Step 0 (plantões) ══ */}
+      {isEdit && step === 0 && (
         <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {serverError && (
             <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>
@@ -676,6 +825,16 @@ export default function InvoiceDrawer({
             onChange={setSelectedIds}
             loading={editShiftsLoading}
           />
+        </Box>
+      )}
+
+      {/* ══ MODO: EDITAR — Step 1 (extras) ══ */}
+      {isEdit && step === 1 && (
+        <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {serverError && (
+            <Alert severity="error" sx={{ borderRadius: '6px' }}>{serverError}</Alert>
+          )}
+          <ExtraItemsEditor items={extraItems} onChange={setExtraItems} />
         </Box>
       )}
 
@@ -727,6 +886,7 @@ export default function InvoiceDrawer({
       <Box sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end', flexShrink: 0 }}>
         <Button variant="outlined" onClick={onClose} disabled={isPending}>Cancelar</Button>
 
+        {/* generate: step 0 — Próximo */}
         {isGenerate && step === 0 && (
           <Button
             variant="contained"
@@ -738,23 +898,51 @@ export default function InvoiceDrawer({
           </Button>
         )}
 
+        {/* generate: step 1 — Próximo (para extras) */}
         {isGenerate && step === 1 && (
           <Button
             variant="contained"
-            onClick={handleGenerate}
+            onClick={handleShiftsNext}
             disabled={isPending || selectedIds.size === 0}
-            sx={{ minWidth: 130 }}
+            sx={{ minWidth: 120 }}
           >
-            {isPending ? <CircularProgress size={18} color="inherit" /> : `Gerar fatura (${selectedIds.size})`}
+            Próximo →
           </Button>
         )}
 
-        {isEdit && (
+        {/* generate: step 2 — Gerar fatura */}
+        {isGenerate && step === 2 && (
+          <Button
+            variant="contained"
+            onClick={handleGenerate}
+            disabled={isPending}
+            sx={{ minWidth: 140 }}
+          >
+            {isPending
+              ? <CircularProgress size={18} color="inherit" />
+              : `Gerar fatura${extraItems.length > 0 ? ` +${extraItems.length}` : ''}`}
+          </Button>
+        )}
+
+        {/* edit: step 0 — Próximo (para extras) */}
+        {isEdit && step === 0 && (
+          <Button
+            variant="contained"
+            onClick={() => { if (selectedIds.size === 0) { setServerError('Selecione pelo menos um plantão.'); return } setServerError(null); setStep(1) }}
+            disabled={isPending || selectedIds.size === 0}
+            sx={{ minWidth: 120 }}
+          >
+            Próximo →
+          </Button>
+        )}
+
+        {/* edit: step 1 — Salvar alterações */}
+        {isEdit && step === 1 && (
           <Button
             variant="contained"
             onClick={handleEdit}
-            disabled={isPending || selectedIds.size === 0}
-            sx={{ minWidth: 130 }}
+            disabled={isPending}
+            sx={{ minWidth: 140 }}
           >
             {isPending ? <CircularProgress size={18} color="inherit" /> : 'Salvar alterações'}
           </Button>

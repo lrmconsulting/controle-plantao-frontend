@@ -32,6 +32,9 @@ export const invoicesApi = {
   /** Substitui plantões de uma fatura rascunho: { shift_ids: [...] } */
   editShifts: (id, shift_ids) => api.patch(`/financials/invoices/${id}/edit-shifts/`, { shift_ids }),
 
+  /** Substitui itens adicionais de uma fatura rascunho: { extra_items: [{description, value}] } */
+  editExtras: (id, extra_items) => api.patch(`/financials/invoices/${id}/edit-extras/`, { extra_items }),
+
   /** Lista plantões disponíveis para faturamento: { institution, month } */
   availableShifts: (params) => api.get('/financials/invoices/available-shifts/', { params }),
 
