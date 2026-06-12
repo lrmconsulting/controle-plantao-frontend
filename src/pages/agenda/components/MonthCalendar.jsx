@@ -59,12 +59,13 @@ function dateKey(date) {
 
 /**
  * Extrai a chave de data (YYYY-MM-DD) de um start_datetime vindo da API.
- * Usa os primeiros 10 caracteres da string ISO diretamente, evitando
- * conversão para horário local que poderia deslocar o evento um dia.
+ * Converte para horário LOCAL do browser para que plantões noturnos (ex: 22h em
+ * UTC-3 → 01h UTC do dia seguinte) apareçam no dia correto no calendário.
  */
 function shiftDateKey(isoStr) {
   if (!isoStr) return null
-  return isoStr.slice(0, 10)   // "2026-05-15T00:00:00Z" → "2026-05-15"
+  const dt = new Date(isoStr)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
 function groupShiftsByDate(shifts) {

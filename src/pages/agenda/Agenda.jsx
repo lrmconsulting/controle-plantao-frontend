@@ -447,8 +447,10 @@ export default function Agenda() {
     if (!selectedDate) return []
     const key = dateKey(selectedDate)
     return (monthShiftsData || []).filter(s => {
-      // Usa os primeiros 10 caracteres para evitar desvio por timezone
-      return (s.start_datetime || '').slice(0, 10) === key
+      // Converte para data local para que plantões noturnos (ex: 22h em UTC-3)
+      // apareçam no dia correto e não no dia seguinte em UTC
+      if (!s.start_datetime) return false
+      return dateKey(new Date(s.start_datetime)) === key
     }).sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime))
   }, [selectedDate, monthShiftsData])
 
