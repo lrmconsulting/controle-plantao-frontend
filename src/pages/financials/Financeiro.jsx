@@ -22,6 +22,7 @@ import { shiftsApi }      from '@/api/shifts'
 import { invoicesApi }    from '@/api/financials'
 import InvoiceDrawer   from './components/InvoiceDrawer'
 import ReceivablesTab  from './components/ReceivablesTab'
+import ReportsTab      from './components/ReportsTab'
 
 /* ─── helpers ─── */
 const MONTHS_PT = [
@@ -597,6 +598,7 @@ export default function Financeiro() {
           sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: '0.82rem', fontWeight: 600 } }}>
           <Tab label="Mensal" value={0} />
           <Tab label="Recebíveis" value={1} />
+          <Tab label="Relatórios" value={2} />
         </Tabs>
       </Box>
 
@@ -606,6 +608,9 @@ export default function Financeiro() {
           <ReceivablesTab />
         </Box>
       )}
+
+      {/* ══ ABA: RELATÓRIOS ══ */}
+      {activeTab === 2 && <ReportsTab />}
 
       {/* ══ ABA: MENSAL ══ */}
       {activeTab === 0 && (

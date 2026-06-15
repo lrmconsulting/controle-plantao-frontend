@@ -46,6 +46,9 @@ export const invoicesApi = {
 
   /** Complementa fatura draft com plantões não faturados do mesmo mês/instituição */
   complement: (id) => api.post(`/financials/invoices/${id}/complement/`),
+
+  /** Relatório anual consolidado: plantões + faturas por mês. Query param: year */
+  annualReport: (year) => api.get('/financials/invoices/annual-report/', { params: { year } }),
 }
 
 export const paymentsApi = {
