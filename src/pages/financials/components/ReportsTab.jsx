@@ -72,11 +72,15 @@ const cellSx = {
   whiteSpace: 'nowrap',
 }
 
+// Separador vertical entre grupos (Mês | Plantões | Faturas)
+const sepR = { borderRight: '1px solid', borderRightColor: 'divider' }
+
 function MonthRow({ m, isOdd }) {
   const hasShifts = m.shifts_completed + m.shifts_scheduled > 0
   return (
     <TableRow sx={{ bgcolor: isOdd ? 'rgba(0,0,0,0.015)' : 'transparent' }}>
-      <TableCell sx={{ ...cellSx, fontWeight: 600 }}>{m.month_name}</TableCell>
+      {/* Mês — separador direito */}
+      <TableCell sx={{ ...cellSx, ...sepR, fontWeight: 600 }}>{m.month_name}</TableCell>
       {/* Plantões */}
       <TableCell align="right" sx={cellSx}>
         {m.shifts_completed > 0
@@ -88,7 +92,8 @@ function MonthRow({ m, isOdd }) {
           ? <Chip label={m.shifts_scheduled} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#e0f2fe', color: '#0369a1' }} />
           : <Typography component="span" sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>}
       </TableCell>
-      <TableCell align="right" sx={{ ...cellSx, fontWeight: hasShifts ? 600 : 400, color: hasShifts ? 'text.primary' : 'text.disabled' }}>
+      {/* Valor — separador direito */}
+      <TableCell align="right" sx={{ ...cellSx, ...sepR, fontWeight: hasShifts ? 600 : 400, color: hasShifts ? 'text.primary' : 'text.disabled' }}>
         {hasShifts ? currency(m.shifts_value) : '—'}
       </TableCell>
       {/* Faturas */}
@@ -107,7 +112,8 @@ function MonthRow({ m, isOdd }) {
 
 /* ── Export helpers ───────────────────────────────────────────────────────── */
 async function exportExcel(year, months, totals) {
-  const XLSX = (await import('xlsx')).default
+  // SheetJS não tem default export no ESM — importar o namespace diretamente
+  const XLSX = await import('xlsx')
 
   // Aba 1 — Resumo mensal
   const header = [
@@ -395,27 +401,28 @@ export default function ReportsTab() {
         <Paper variant="outlined" sx={{ borderRadius: '8px', overflow: 'hidden' }}>
           <Table size="small">
             <TableHead>
+              {/* Linha 1 — cabeçalhos de grupo */}
               <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                {/* Plantões */}
-                <TableCell sx={{ ...cellSx, borderRight: '1px solid', borderColor: 'divider' }} colSpan={1} />
+                <TableCell sx={{ ...cellSx, ...sepR, borderBottom: '1px solid', borderBottomColor: 'divider' }} />
                 <TableCell
                   align="center" colSpan={3}
-                  sx={{ ...cellSx, fontWeight: 700, color: '#0d9488', borderRight: '1px solid', borderColor: 'divider', borderBottom: '1px solid', borderBottomColor: 'divider', fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                  sx={{ ...cellSx, ...sepR, fontWeight: 700, color: '#0d9488', borderBottom: '1px solid', borderBottomColor: 'divider', fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
                 >
                   Plantões
                 </TableCell>
                 <TableCell
                   align="center" colSpan={3}
-                  sx={{ ...cellSx, fontWeight: 700, color: '#7c3aed', fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                  sx={{ ...cellSx, fontWeight: 700, color: '#7c3aed', borderBottom: '1px solid', borderBottomColor: 'divider', fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
                 >
                   Faturas
                 </TableCell>
               </TableRow>
+              {/* Linha 2 — nomes das colunas */}
               <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                <TableCell sx={{ ...cellSx, fontWeight: 700, borderRight: '1px solid', borderColor: 'divider' }}>Mês</TableCell>
+                <TableCell sx={{ ...cellSx, ...sepR, fontWeight: 700 }}>Mês</TableCell>
                 <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#10b981' }}>Realizados</TableCell>
                 <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#0ea5e9' }}>Agendados</TableCell>
-                <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderRight: '1px solid', borderColor: 'divider' }}>Valor</TableCell>
+                <TableCell align="right" sx={{ ...cellSx, ...sepR, fontWeight: 700 }}>Valor</TableCell>
                 <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#10b981' }}>Recebido</TableCell>
                 <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#f59e0b' }}>A receber</TableCell>
                 <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: 'text.secondary' }}>Rascunho</TableCell>
@@ -443,25 +450,25 @@ export default function ReportsTab() {
             {!isLoading && data && (
               <TableFooter>
                 <TableRow sx={{ bgcolor: '#f0fdfa' }}>
-                  <TableCell sx={{ ...cellSx, fontWeight: 700, color: '#0d9488', borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell sx={{ ...cellSx, ...sepR, fontWeight: 700, color: '#0d9488', borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     Total {year}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {totals.shifts_completed ?? 0}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {totals.shifts_scheduled ?? 0}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, borderTop: '2px solid', borderColor: '#99f6e4', borderRight: '1px solid', borderRightColor: 'divider' }}>
+                  <TableCell align="right" sx={{ ...cellSx, ...sepR, fontWeight: 700, borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {currency(totals.shifts_value)}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#10b981', borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: '#10b981', borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {currency(totals.inv_paid)}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: num(totals.inv_issued) + num(totals.inv_overdue) > 0 ? 'warning.dark' : 'text.disabled', borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: num(totals.inv_issued) + num(totals.inv_overdue) > 0 ? 'warning.dark' : 'text.disabled', borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {currency(num(totals.inv_issued) + num(totals.inv_overdue))}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: 'text.secondary', borderTop: '2px solid', borderColor: '#99f6e4' }}>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: 'text.secondary', borderTop: '2px solid', borderTopColor: '#99f6e4' }}>
                     {currency(totals.inv_draft)}
                   </TableCell>
                 </TableRow>
