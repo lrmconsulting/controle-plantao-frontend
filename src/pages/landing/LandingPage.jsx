@@ -1,5 +1,5 @@
 /**
- * LandingPage — Vitalis
+ * LandingPage — PlantãoMed
  * Design system: ai-automation-17.aura.build
  * Fonte: Inter · Fundo: #F3F3F1 · Container: max-w-[1400px] rounded-[2.5rem]
  */
@@ -29,7 +29,7 @@ function useScrollReveal(ref) {
 function Logo({ white = false }) {
   const c = white ? 'bg-white' : 'bg-[#0d9488]'
   return (
-    <RouterLink to="/" className="flex items-center gap-1 group cursor-pointer" aria-label="Vitalis">
+    <RouterLink to="/" className="flex items-center gap-1 group cursor-pointer" aria-label="PlantãoMed">
       <div className={`h-6 w-2 ${c} rounded-full transition-all duration-300 group-hover:h-8`} />
       <div className={`h-6 w-2 ${c} rounded-full transition-all duration-300 group-hover:h-4`} />
       <div className={`h-6 w-2 ${c} rounded-full transition-all duration-300 group-hover:h-6`} />
@@ -70,7 +70,7 @@ function AppMockup() {
         <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#FEBC2E' }} />
         <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
         <span className="ml-auto text-[0.52rem] font-semibold text-gray-300 uppercase tracking-widest">
-          Vitalis
+          PlantãoMed
         </span>
       </div>
 
@@ -651,7 +651,7 @@ const FEATURES = [
   {
     label:   'Integrações',
     title:   'Google e Apple Calendar sincronizados',
-    desc:    'Conecte sua conta Google ou Apple ID e seus plantões aparecem automaticamente em todos os dispositivos. Somente leitura — o Vitalis nunca altera seus eventos externos.',
+    desc:    'Conecte sua conta Google ou Apple ID e seus plantões aparecem automaticamente em todos os dispositivos. Somente leitura — o PlantãoMed nunca altera seus eventos externos.',
     glow:    'absolute top-[20%] right-[20%] w-[50%] h-[50%] bg-indigo-500 rounded-full blur-3xl opacity-20',
     border:  'border-indigo-600 border-4',
     content: <CalendarIntegrationPreview />,
@@ -680,7 +680,7 @@ function FeaturesSection() {
           Funcionalidades
         </span>
         <h2 className="text-3xl font-medium tracking-tight text-gray-900">
-          O que o Vitalis faz por você
+          O que o PlantãoMed faz por você
         </h2>
       </div>
 
@@ -927,7 +927,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'A sincronização com o Google Calendar é automática?',
-    a: 'Sim. Após conectar sua conta Google nas configurações, os plantões aparecem automaticamente no seu Google Calendar. O Vitalis importa eventos de fora e mantém tudo sincronizado — mas nunca modifica seus eventos externos.',
+    a: 'Sim. Após conectar sua conta Google nas configurações, os plantões aparecem automaticamente no seu Google Calendar. O PlantãoMed importa eventos de fora e mantém tudo sincronizado — mas nunca modifica seus eventos externos.',
   },
   {
     q: 'O que são os relatórios anuais?',
@@ -939,7 +939,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'O app funciona no celular?',
-    a: 'Sim. O Vitalis é totalmente responsivo e funciona em qualquer navegador — celular, tablet ou desktop. Não requer instalação.',
+    a: 'Sim. O PlantãoMed é totalmente responsivo e funciona em qualquer navegador — celular, tablet ou desktop. Não requer instalação.',
   },
 ]
 
@@ -993,7 +993,7 @@ function Footer() {
       <Logo />
 
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-gray-400">
-        © {new Date().getFullYear()} Vitalis — Controle de Plantões
+        © {new Date().getFullYear()} PlantãoMed — Controle de Plantões
       </p>
 
       <div className="flex items-center gap-6">

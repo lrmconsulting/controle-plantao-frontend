@@ -1,7 +1,7 @@
 /**
- * Vitalis MUI Theme
+ * PlantãoMed MUI Theme
  * Estética editorial — design system ai-automation.
- * Fundo cream #F3F3F1 · Inter body · accent teal (marca Vitalis)
+ * Fundo cream #F3F3F1 · Inter body · accent teal (marca PlantãoMed)
  */
 import { createTheme } from '@mui/material/styles'
 
@@ -10,7 +10,7 @@ const CREAM_DARK = '#EBEBEA'
 const INK        = '#0A0A0A'
 const BORDER     = 'rgba(0,0,0,0.07)'
 
-const vitalisTheme = createTheme({
+const plantaomedTheme = createTheme({
   palette: {
     primary: {
       main:        '#0d9488',
@@ -299,4 +299,4 @@ const vitalisTheme = createTheme({
   },
 })
 
-export default vitalisTheme
+export default plantaomedTheme

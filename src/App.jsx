@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import vitalisTheme from '@/theme'
+import plantaomedTheme from '@/theme'
 import AuthLayout from '@/components/layout/AuthLayout'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
@@ -31,7 +31,7 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={vitalisTheme}>
+      <ThemeProvider theme={plantaomedTheme}>
         <CssBaseline />
         <BrowserRouter>
           <Routes>

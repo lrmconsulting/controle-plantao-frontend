@@ -207,7 +207,7 @@ export default function AssinarPage() {
           letterSpacing: '0.18em', textTransform: 'uppercase',
           color: '#0A0A0A',
         }}>
-          Vitalis
+          PlantãoMed
         </Typography>
       </Box>
 
@@ -233,7 +233,7 @@ export default function AssinarPage() {
       )}
       {isCanceled && (
         <Alert severity="warning" sx={{ mb: 3, maxWidth: 640, borderRadius: '10px', fontSize: '0.85rem' }}>
-          Sua assinatura foi cancelada. Reative para continuar usando o Vitalis.
+          Sua assinatura foi cancelada. Reative para continuar usando o PlantãoMed.
         </Alert>
       )}
       {isPastDue && (

@@ -12,7 +12,7 @@ export default {
         ink:    '#0A0A0A',
         ink2:   '#08090A',
         inkbtn: '#1A1A1A',
-        // Vitalis brand (teal)
+        // PlantãoMed brand (teal)
         brand: {
           50:  '#f0fdfa',
           100: '#ccfbf1',

@@ -1,5 +1,5 @@
 /**
- * AppLayout — Vitalis
+ * AppLayout — PlantãoMed
  * Estética editorial · Logo teal · Badge de plano no header
  */
 import { useState } from 'react'
@@ -112,7 +112,7 @@ function DrawerContent({ onNavigate }) {
             fontSize: '0.7rem', letterSpacing: '0.18em',
             textTransform: 'uppercase', color: '#0A0A0A', lineHeight: 1,
           }}>
-            Vitalis
+            PlantãoMed
           </Typography>
           <Typography sx={{
             fontFamily: 'Inter, sans-serif', fontWeight: 600,
@@ -207,7 +207,7 @@ function TopBar({ onMenuClick }) {
   const [anchor, setAnchor] = useState(null)
   const { effectivePlan }   = usePlan()
 
-  const currentLabel = NAV_ITEMS.find((i) => location.pathname.startsWith(i.path))?.label || 'Vitalis'
+  const currentLabel = NAV_ITEMS.find((i) => location.pathname.startsWith(i.path))?.label || 'PlantãoMed'
 
   function handleLogout() { setAnchor(null); logout(); navigate('/login') }
 

@@ -67,7 +67,7 @@ export default function AuthLayout() {
                 fontSize: '0.75rem', letterSpacing: '0.18em',
                 textTransform: 'uppercase', color: '#0A0A0A',
               }}>
-                Vitalis
+                PlantãoMed
               </Typography>
             </Box>
           </RouterLink>
@@ -121,7 +121,7 @@ export default function AuthLayout() {
               fontSize: '0.75rem', letterSpacing: '0.18em',
               textTransform: 'uppercase', color: '#0A0A0A',
             }}>
-              Vitalis
+              PlantãoMed
             </Typography>
           </Box>
           <Typography sx={{ fontSize: '0.7rem', color: '#888', mt: 0.5, letterSpacing: '0.08em' }}>

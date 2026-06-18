@@ -31,7 +31,7 @@ export const useAuthStore = create(
       }),
     }),
     {
-      name: 'vitalis-auth',
+      name: 'plantaomed-auth',
       partialState: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,

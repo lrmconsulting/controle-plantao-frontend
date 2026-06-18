@@ -150,7 +150,7 @@ async function exportExcel(year, months, totals) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, `Relatório ${year}`)
 
-  XLSX.writeFile(wb, `vitalis-relatorio-${year}.xlsx`)
+  XLSX.writeFile(wb, `plantaomed-relatorio-${year}.xlsx`)
 }
 
 async function exportPDF(year, months, totals) {
@@ -162,7 +162,7 @@ async function exportPDF(year, months, totals) {
   // Cabeçalho
   doc.setFontSize(16)
   doc.setTextColor(15, 118, 110)
-  doc.text('Vitalis — Relatório Anual', 14, 18)
+  doc.text('PlantãoMed — Relatório Anual', 14, 18)
 
   doc.setFontSize(11)
   doc.setTextColor(100, 100, 100)
@@ -242,9 +242,9 @@ async function exportPDF(year, months, totals) {
   const pageH = doc.internal.pageSize.height
   doc.setFontSize(7)
   doc.setTextColor(180, 180, 180)
-  doc.text('Vitalis — Controle de Plantões · Relatório gerado automaticamente', 14, pageH - 6)
+  doc.text('PlantãoMed — Controle de Plantões · Relatório gerado automaticamente', 14, pageH - 6)
 
-  doc.save(`vitalis-relatorio-${year}.pdf`)
+  doc.save(`plantaomed-relatorio-${year}.pdf`)
 }
 
 /* ── Componente principal ──────────────────────────────────────────────────── */

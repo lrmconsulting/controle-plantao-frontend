@@ -602,7 +602,7 @@ function generatePrintHTML(timeline) {
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Recebíveis — Vitalis</title>
+<title>Recebíveis — PlantãoMed</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#1e293b;padding:28px}
@@ -622,7 +622,7 @@ function generatePrintHTML(timeline) {
 </head>
 <body>
   <h1>Relatório de Recebíveis</h1>
-  <div class="sub">Vitalis &middot; Gerado em ${dateStr} às ${timeStr}</div>
+  <div class="sub">PlantãoMed &middot; Gerado em ${dateStr} às ${timeStr}</div>
   <div class="totals">
     <div class="tot"><label>Total faturado</label><span class="v tb">${fmt(totalBilled)}</span></div>
     <div class="tot"><label>Total recebido</label><span class="v tr">${fmt(totalReceived)}</span></div>

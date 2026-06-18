@@ -360,7 +360,7 @@ function CalendarPickerDialog({ open, onClose, source, integration }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Selecione quais calendários da conta devem ser sincronizados com o Vitalis.
+          Selecione quais calendários da conta devem ser sincronizados com o PlantãoMed.
         </Typography>
 
         {isLoading && (
@@ -645,7 +645,7 @@ function AppPasswordHelpDialog({ open, onClose }) {
     {
       number: 4,
       text: 'Dê um nome para a senha',
-      detail: '(ex: "Vitalis") e clique em Criar.',
+      detail: '(ex: "PlantãoMed") e clique em Criar.',
     },
     {
       number: 5,
@@ -831,7 +831,7 @@ function TabIntegracoes() {
     <Box>
       <Typography variant="body2" color="text.secondary" mb={3}>
         Conecte seus calendários externos para visualizar plantões e compromissos em um só lugar.
-        A sincronização é somente leitura — o Vitalis não altera seus dados externos.
+        A sincronização é somente leitura — o PlantãoMed não altera seus dados externos.
       </Typography>
 
       {/* Google Calendar */}
@@ -847,7 +847,7 @@ function TabIntegracoes() {
       >
         <Stack spacing={2.5}>
           <Typography variant="body2" color="text.secondary">
-            Ao clicar em conectar, uma janela do Google será aberta para você autorizar o acesso ao seu calendário. O Vitalis nunca modifica seus eventos.
+            Ao clicar em conectar, uma janela do Google será aberta para você autorizar o acesso ao seu calendário. O PlantãoMed nunca modifica seus eventos.
           </Typography>
           {googleError && <Alert severity="error">{googleError}</Alert>}
           <Box>
@@ -1377,7 +1377,7 @@ function TabAssinatura() {
           {isTrialing && (
             <>
               <Typography variant="body2" color="text.secondary">
-                Ao final do trial você precisará de um plano para continuar usando o Vitalis.
+                Ao final do trial você precisará de um plano para continuar usando o PlantãoMed.
               </Typography>
               <Box>
                 <Button
@@ -1546,7 +1546,7 @@ export default function Ajustes() {
       <Box mb={3}>
         <Typography variant="h5" fontWeight={700}>Ajustes</Typography>
         <Typography variant="body2" color="text.secondary">
-          Gerencie seu perfil, integrações e preferências do Vitalis
+          Gerencie seu perfil, integrações e preferências do PlantãoMed
         </Typography>
       </Box>
 
