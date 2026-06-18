@@ -7,7 +7,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
+        // ai-automation design system
+        cream:  '#F3F3F1',
+        ink:    '#0A0A0A',
+        ink2:   '#08090A',
+        inkbtn: '#1A1A1A',
+        // Vitalis brand (teal)
+        brand: {
           50:  '#f0fdfa',
           100: '#ccfbf1',
           200: '#99f6e4',
@@ -24,6 +30,10 @@ export default {
         sans:    ['Inter', 'system-ui', 'sans-serif'],
         display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
         mono:    ['Space Mono', 'monospace'],
+      },
+      borderRadius: {
+        '4xl': '2rem',
+        '5xl': '2.5rem',
       },
     },
   },

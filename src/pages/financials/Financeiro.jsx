@@ -4,6 +4,8 @@ import {
   useTheme, useMediaQuery, CircularProgress,
   Tabs, Tab, Alert, Menu, MenuItem,
 } from '@mui/material'
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
+import { usePlan } from '@/hooks/usePlan'
 import ChevronLeftIcon          from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon         from '@mui/icons-material/ChevronRight'
 import AddIcon                  from '@mui/icons-material/Add'
@@ -339,6 +341,7 @@ function ForecastSection() {
 export default function Financeiro() {
   const theme    = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const { hasReportsAccess } = usePlan()
 
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -598,7 +601,17 @@ export default function Financeiro() {
           sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: '0.82rem', fontWeight: 600 } }}>
           <Tab label="Mensal" value={0} />
           <Tab label="Recebíveis" value={1} />
-          <Tab label="Relatórios" value={2} />
+          <Tab
+            value={2}
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                Relatórios
+                {!hasReportsAccess && (
+                  <LockOutlinedIcon sx={{ fontSize: 13, color: '#aaa', ml: 0.25 }} />
+                )}
+              </Box>
+            }
+          />
         </Tabs>
       </Box>
 
@@ -610,7 +623,42 @@ export default function Financeiro() {
       )}
 
       {/* ══ ABA: RELATÓRIOS ══ */}
-      {activeTab === 2 && <ReportsTab />}
+      {activeTab === 2 && (
+        hasReportsAccess
+          ? <ReportsTab />
+          : (
+            <Box sx={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', py: 8, px: 3, textAlign: 'center', gap: 2,
+            }}>
+              <Box sx={{
+                width: 56, height: 56, borderRadius: '50%',
+                bgcolor: 'rgba(0,0,0,0.05)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <LockOutlinedIcon sx={{ fontSize: 26, color: '#aaa' }} />
+              </Box>
+              <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#0A0A0A' }}>
+                Relatórios — Plano Premium
+              </Typography>
+              <Typography sx={{ fontSize: '0.85rem', color: '#666', maxWidth: 340, lineHeight: 1.6 }}>
+                Gere relatórios anuais e exporte em PDF e Excel atualizando para o plano Premium.
+              </Typography>
+              <Button
+                variant="contained"
+                href="/assinar"
+                sx={{
+                  mt: 1, bgcolor: '#0d9488', borderRadius: 99,
+                  '&:hover': { bgcolor: '#0f766e' },
+                  fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Ver planos
+              </Button>
+            </Box>
+          )
+      )}
 
       {/* ══ ABA: MENSAL ══ */}
       {activeTab === 0 && (

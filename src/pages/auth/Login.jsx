@@ -7,10 +7,10 @@ import {
   Box, Typography, TextField, Button, Link,
   InputAdornment, IconButton, Alert, CircularProgress,
 } from '@mui/material'
-import VisibilityIcon from '@mui/icons-material/Visibility'
+import VisibilityIcon    from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
-import { authApi } from '@/api/auth'
-import { useAuthStore } from '@/store/authStore'
+import { authApi }       from '@/api/auth'
+import { useAuthStore }  from '@/store/authStore'
 
 const schema = z.object({
   email:    z.string().email('E-mail inválido'),
@@ -18,10 +18,10 @@ const schema = z.object({
 })
 
 export default function Login() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const setAuth = useAuthStore((s) => s.setAuth)
-  const [showPassword, setShowPassword] = useState(false)
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const setAuth   = useAuthStore((s) => s.setAuth)
+  const [showPwd, setShowPwd] = useState(false)
   const [apiError, setApiError] = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
@@ -37,29 +37,35 @@ export default function Login() {
       setAuth(res.data.user, res.data.access, res.data.refresh)
       navigate(from, { replace: true })
     } catch (err) {
-      const msg = err.response?.data?.non_field_errors?.[0]
-        || err.response?.data?.detail
-        || 'E-mail ou senha incorretos.'
-      setApiError(msg)
+      setApiError(
+        err.response?.data?.non_field_errors?.[0] ||
+        err.response?.data?.detail ||
+        'E-mail ou senha incorretos.'
+      )
     }
   }
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+      <Typography sx={{
+        fontFamily: 'Inter, sans-serif', fontWeight: 700,
+        fontSize: '1.5rem', letterSpacing: '-0.03em', color: '#0A0A0A', mb: 0.5,
+      }}>
         Entrar
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+      <Typography sx={{ fontSize: '0.85rem', color: '#888', mb: 4, lineHeight: 1.5 }}>
         Acesse sua conta para gerenciar seus plantões
       </Typography>
 
       {apiError && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: '10px', fontSize: '0.82rem' }}>
           {apiError}
         </Alert>
       )}
 
-      <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <Box component="form" onSubmit={handleSubmit(onSubmit)}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+
         <TextField
           label="E-mail"
           type="email"
@@ -72,7 +78,7 @@ export default function Login() {
 
         <TextField
           label="Senha"
-          type={showPassword ? 'text' : 'password'}
+          type={showPwd ? 'text' : 'password'}
           autoComplete="current-password"
           {...register('password')}
           error={!!errors.password}
@@ -81,8 +87,8 @@ export default function Login() {
             input: {
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                    {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                  <IconButton onClick={() => setShowPwd(!showPwd)} edge="end" size="small">
+                    {showPwd ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                   </IconButton>
                 </InputAdornment>
               ),
@@ -95,15 +101,23 @@ export default function Login() {
           variant="contained"
           size="large"
           disabled={isSubmitting}
-          sx={{ mt: 1, py: 1.5 }}
+          sx={{
+            mt: 1, py: 1.4,
+            bgcolor: '#0A0A0A', borderRadius: 99,
+            '&:hover': { bgcolor: '#1a1a1a', transform: 'scale(1.01)' },
+            fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.1em',
+          }}
         >
-          {isSubmitting ? <CircularProgress size={22} color="inherit" /> : 'Entrar'}
+          {isSubmitting
+            ? <CircularProgress size={20} color="inherit" />
+            : 'Entrar'}
         </Button>
       </Box>
 
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: 'center' }}>
+      <Typography sx={{ mt: 3, textAlign: 'center', fontSize: '0.82rem', color: '#888' }}>
         Ainda não tem conta?{' '}
-        <Link component={RouterLink} to="/cadastro" fontWeight={600} color="primary.main" underline="none">
+        <Link component={RouterLink} to="/cadastro" fontWeight={700} color="#0d9488" underline="none"
+          sx={{ '&:hover': { color: '#0f766e' } }}>
           Criar conta
         </Link>
       </Typography>

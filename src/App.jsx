@@ -6,6 +6,7 @@ import vitalisTheme from '@/theme'
 import AuthLayout from '@/components/layout/AuthLayout'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
+import SubscriptionGuard from '@/components/common/SubscriptionGuard'
 
 import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
@@ -14,6 +15,9 @@ import Agenda from '@/pages/agenda/Agenda'
 import Financeiro from '@/pages/financials/Financeiro'
 import Cadastros from '@/pages/settings/Cadastros'
 import Ajustes from '@/pages/settings/Ajustes'
+import LandingPage from '@/pages/landing/LandingPage'
+import AssinarPage from '@/pages/subscription/AssinarPage'
+import ConfirmacaoPage from '@/pages/subscription/ConfirmacaoPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,20 +35,45 @@ export default function App() {
         <CssBaseline />
         <BrowserRouter>
           <Routes>
-            {/* Rotas públicas */}
+            {/* Landing page — rota raiz pública */}
+            <Route path="/" element={<LandingPage />} />
+
+            {/* Rotas de autenticação */}
             <Route element={<AuthLayout />}>
               <Route path="/login"    element={<Login />} />
               <Route path="/cadastro" element={<Register />} />
             </Route>
 
-            {/* Callback OAuth2 — popup intermediário, fora do layout */}
+            {/* Callback OAuth2 Google */}
             <Route path="/auth/google-callback" element={<GoogleCallback />} />
 
-            {/* Rotas protegidas */}
+            {/* Tela de assinatura — autenticado mas sem assinatura ativa */}
+            <Route
+              path="/assinar"
+              element={
+                <ProtectedRoute>
+                  <AssinarPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Confirmação de checkout Stripe */}
+            <Route
+              path="/assinatura-confirmada"
+              element={
+                <ProtectedRoute>
+                  <ConfirmacaoPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Rotas protegidas — exigem autenticação + assinatura ativa */}
             <Route
               element={
                 <ProtectedRoute>
-                  <AppLayout />
+                  <SubscriptionGuard>
+                    <AppLayout />
+                  </SubscriptionGuard>
                 </ProtectedRoute>
               }
             >
@@ -54,8 +83,7 @@ export default function App() {
               <Route path="/ajustes"    element={<Ajustes />} />
             </Route>
 
-            <Route path="/" element={<Navigate to="/agenda" replace />} />
-            <Route path="*" element={<Navigate to="/agenda" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

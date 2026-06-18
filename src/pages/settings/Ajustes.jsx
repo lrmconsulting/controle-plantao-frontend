@@ -18,9 +18,11 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined'
+import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined'
 import GoogleIcon from '@mui/icons-material/Google'
 import AppleIcon from '@mui/icons-material/Apple'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined'
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import LinkOffIcon from '@mui/icons-material/LinkOff'
 import SyncIcon from '@mui/icons-material/Sync'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
@@ -28,9 +30,14 @@ import Visibility from '@mui/icons-material/Visibility'
 import VisibilityOff from '@mui/icons-material/VisibilityOff'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import AccessTimeIcon from '@mui/icons-material/AccessTime'
+import StarBorderOutlinedIcon from '@mui/icons-material/StarBorderOutlined'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 
 import { profileApi, preferencesApi, integrationsApi } from '@/api/settings'
+import { billingApi } from '@/api/billing'
 import { useAuthStore } from '@/store/authStore'
+import { usePlan } from '@/hooks/usePlan'
 
 /* ─── Schemas Zod ─── */
 const profileSchema = z.object({
@@ -1142,7 +1149,268 @@ function TabNotificacoes() {
 }
 
 /* ══════════════════════════════════════════
-   ABA 4 — CONTA
+   ABA 4 — ASSINATURA
+══════════════════════════════════════════ */
+const PLAN_CONFIG = {
+  trial: {
+    label: 'Período de Teste',
+    color: '#F59E0B',
+    bg: '#FFFBEB',
+    border: '#FDE68A',
+    description: 'Você está no trial gratuito com acesso completo, incluindo relatórios.',
+    features: [
+      { label: 'Agenda completa de plantões', included: true },
+      { label: 'Gestão de instituições e unidades', included: true },
+      { label: 'Controle financeiro e recebíveis', included: true },
+      { label: 'Integração com Google e Apple Calendar', included: true },
+      { label: 'Relatórios e exportação (Premium)', included: true },
+    ],
+  },
+  basic: {
+    label: 'Básico',
+    color: '#3B82F6',
+    bg: '#EFF6FF',
+    border: '#BFDBFE',
+    description: 'Plano Básico ativo — acesso a todas as funcionalidades exceto relatórios.',
+    features: [
+      { label: 'Agenda completa de plantões', included: true },
+      { label: 'Gestão de instituições e unidades', included: true },
+      { label: 'Controle financeiro e recebíveis', included: true },
+      { label: 'Integração com Google e Apple Calendar', included: true },
+      { label: 'Relatórios e exportação', included: false },
+    ],
+  },
+  premium: {
+    label: 'Premium',
+    color: '#0d9488',
+    bg: '#F0FDFA',
+    border: '#99F6E4',
+    description: 'Plano Premium ativo — acesso completo incluindo relatórios anuais.',
+    features: [
+      { label: 'Agenda completa de plantões', included: true },
+      { label: 'Gestão de instituições e unidades', included: true },
+      { label: 'Controle financeiro e recebíveis', included: true },
+      { label: 'Integração com Google e Apple Calendar', included: true },
+      { label: 'Relatórios e exportação', included: true },
+    ],
+  },
+}
+
+function TabAssinatura() {
+  const { effectivePlan, subStatus, isLoading } = usePlan()
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError]     = useState('')
+
+  const cfg = PLAN_CONFIG[effectivePlan] || null
+
+  async function handlePortal() {
+    setPortalLoading(true)
+    setPortalError('')
+    try {
+      const res = await billingApi.openPortal()
+      window.location.href = res.data.url
+    } catch (err) {
+      setPortalError(err.response?.data?.detail || 'Erro ao abrir portal de assinatura.')
+      setPortalLoading(false)
+    }
+  }
+
+  if (isLoading) {
+    return <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+  }
+
+  const isTrialing = effectivePlan === 'trial'
+  const isBasic    = effectivePlan === 'basic'
+  const isPremium  = effectivePlan === 'premium'
+  const isActive   = subStatus?.is_active && (isBasic || isPremium)
+
+  return (
+    <Box>
+      {/* Card de status atual */}
+      {cfg && (
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 3,
+            borderColor: cfg.border,
+            bgcolor: cfg.bg,
+            borderWidth: 1.5,
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+            <Stack direction="row" alignItems="flex-start" spacing={2} mb={2}>
+              <Box
+                sx={{
+                  width: 44, height: 44, borderRadius: 2, flexShrink: 0,
+                  bgcolor: cfg.color, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <WorkspacePremiumOutlinedIcon />
+              </Box>
+              <Box flex={1}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={0.25}>
+                  <Typography fontWeight={700} fontSize="1rem">
+                    Plano {cfg.label}
+                  </Typography>
+                  <Chip
+                    label={isTrialing ? 'TRIAL' : isBasic ? 'BÁSICO' : 'PREMIUM'}
+                    size="small"
+                    sx={{
+                      bgcolor: cfg.color,
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: '0.62rem',
+                      height: 20,
+                    }}
+                  />
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {cfg.description}
+                </Typography>
+              </Box>
+            </Stack>
+
+            {/* Info trial */}
+            {isTrialing && subStatus?.trial_days_left !== undefined && (
+              <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                <AccessTimeIcon sx={{ fontSize: 16, color: cfg.color }} />
+                <Typography variant="body2" fontWeight={500} sx={{ color: cfg.color }}>
+                  {subStatus.trial_days_left > 0
+                    ? `${subStatus.trial_days_left} dia${subStatus.trial_days_left !== 1 ? 's' : ''} restante${subStatus.trial_days_left !== 1 ? 's' : ''} no trial`
+                    : 'Trial expirado — escolha um plano para continuar'}
+                </Typography>
+              </Stack>
+            )}
+
+            {/* Info período ativo */}
+            {isActive && subStatus?.current_period_end && (
+              <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                <AccessTimeIcon sx={{ fontSize: 16, color: cfg.color }} />
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Próxima renovação:{' '}
+                  <strong>
+                    {new Date(subStatus.current_period_end).toLocaleDateString('pt-BR', {
+                      day: '2-digit', month: 'long', year: 'numeric',
+                    })}
+                  </strong>
+                </Typography>
+              </Stack>
+            )}
+
+            {/* Features */}
+            <Divider sx={{ my: 2 }} />
+            <Stack spacing={0.75}>
+              {cfg.features.map((f, i) => (
+                <Stack key={i} direction="row" spacing={1} alignItems="center">
+                  {f.included
+                    ? <CheckCircleOutlineIcon sx={{ fontSize: 15, color: cfg.color, flexShrink: 0 }} />
+                    : <RadioButtonUncheckedIcon sx={{ fontSize: 15, color: '#D1D5DB', flexShrink: 0 }} />
+                  }
+                  <Typography
+                    variant="body2"
+                    sx={{ color: f.included ? 'text.primary' : 'text.disabled' }}
+                  >
+                    {f.label}
+                  </Typography>
+                </Stack>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ações */}
+      <Section title="Gerenciar assinatura">
+        <Stack spacing={2}>
+          {portalError && <Alert severity="error">{portalError}</Alert>}
+
+          {isActive && (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Gerencie seu plano, altere o método de pagamento ou cancele sua assinatura pelo portal de pagamentos.
+              </Typography>
+              <Box>
+                <Button
+                  variant="contained"
+                  onClick={handlePortal}
+                  disabled={portalLoading}
+                  startIcon={portalLoading
+                    ? <CircularProgress size={16} color="inherit" />
+                    : <OpenInNewIcon sx={{ fontSize: 17 }} />
+                  }
+                >
+                  {portalLoading ? 'Abrindo portal…' : 'Gerenciar assinatura'}
+                </Button>
+              </Box>
+            </>
+          )}
+
+          {isBasic && (
+            <>
+              <Divider />
+              <Stack direction="row" alignItems="center" spacing={1.5}
+                sx={{ p: 2, bgcolor: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 2 }}>
+                <StarBorderOutlinedIcon sx={{ color: '#0d9488', fontSize: 20, flexShrink: 0 }} />
+                <Box flex={1}>
+                  <Typography variant="body2" fontWeight={600} sx={{ color: '#0d9488' }}>
+                    Faça upgrade para Premium
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Desbloqueie relatórios anuais e exportação de dados por apenas R$129/mês
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ArrowUpwardIcon sx={{ fontSize: 14 }} />}
+                  href="/assinar"
+                  sx={{ flexShrink: 0, borderColor: '#0d9488', color: '#0d9488',
+                    '&:hover': { bgcolor: '#F0FDFA', borderColor: '#0d9488' } }}
+                >
+                  Upgrade
+                </Button>
+              </Stack>
+            </>
+          )}
+
+          {isTrialing && (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Ao final do trial você precisará de um plano para continuar usando o Vitalis.
+              </Typography>
+              <Box>
+                <Button
+                  variant="contained"
+                  href="/assinar"
+                  sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' } }}
+                >
+                  Ver planos e assinar
+                </Button>
+              </Box>
+            </>
+          )}
+
+          {!effectivePlan && (
+            <>
+              <Alert severity="warning">
+                Sua assinatura está inativa. Assine um plano para retomar o acesso.
+              </Alert>
+              <Box>
+                <Button variant="contained" href="/assinar" color="primary">
+                  Ver planos
+                </Button>
+              </Box>
+            </>
+          )}
+        </Stack>
+      </Section>
+    </Box>
+  )
+}
+
+/* ══════════════════════════════════════════
+   ABA 5 — CONTA
 ══════════════════════════════════════════ */
 function TabConta() {
   const user    = useAuthStore(s => s.user)
@@ -1176,44 +1444,15 @@ function TabConta() {
 
   return (
     <Box>
-      {/* Plano */}
-      <Section title="Plano">
-        <Stack direction="row" alignItems="center" spacing={2}>
-          <Box flex={1}>
-            <Typography fontWeight={600}>Vitalis Free</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Acesso completo durante o período beta. Funcionalidades premium em breve.
-            </Typography>
-          </Box>
-          <Chip label="Beta" color="primary" size="small" />
-        </Stack>
-
-        <Divider sx={{ my: 2 }} />
-
-        <Stack spacing={0.5}>
-          {[
-            'Agenda completa de plantões',
-            'Gestão de instituições e unidades',
-            'Controle financeiro e recebíveis',
-            'Integração com Google e Apple Calendar',
-          ].map((feature) => (
-            <Stack key={feature} direction="row" spacing={1} alignItems="center">
-              <CheckCircleOutlineIcon sx={{ fontSize: 16, color: 'success.main' }} />
-              <Typography variant="body2">{feature}</Typography>
-            </Stack>
-          ))}
-        </Stack>
-      </Section>
-
       {/* Informações da conta */}
       <Section title="Informações da conta">
         <Stack spacing={1}>
           <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">E-mail</Typography>
+            <Typography variant="body2" color="text.secondary">{"E-mail:"}</Typography>
             <Typography variant="body2" fontWeight={500}>{user?.email}</Typography>
           </Stack>
           <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">Membro desde</Typography>
+            <Typography variant="body2" color="text.secondary">Membro desde: </Typography>
             <Typography variant="body2" fontWeight={500}>
               {user?.created_at
                 ? new Date(user.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -1291,10 +1530,11 @@ function TabConta() {
    PÁGINA PRINCIPAL
 ══════════════════════════════════════════ */
 const TABS = [
-  { label: 'Perfil',        icon: <PersonOutlinedIcon fontSize="small" />,            component: <TabPerfil /> },
-  { label: 'Integrações',   icon: <CalendarMonthOutlinedIcon fontSize="small" />,     component: <TabIntegracoes /> },
-  { label: 'Notificações',  icon: <NotificationsOutlinedIcon fontSize="small" />,     component: <TabNotificacoes /> },
-  { label: 'Conta',         icon: <ManageAccountsOutlinedIcon fontSize="small" />,    component: <TabConta /> },
+  { label: 'Perfil',        icon: <PersonOutlinedIcon fontSize="small" />,             component: <TabPerfil /> },
+  { label: 'Integrações',   icon: <CalendarMonthOutlinedIcon fontSize="small" />,      component: <TabIntegracoes /> },
+  { label: 'Notificações',  icon: <NotificationsOutlinedIcon fontSize="small" />,      component: <TabNotificacoes /> },
+  { label: 'Assinatura',    icon: <WorkspacePremiumOutlinedIcon fontSize="small" />,   component: <TabAssinatura /> },
+  { label: 'Conta',         icon: <ManageAccountsOutlinedIcon fontSize="small" />,     component: <TabConta /> },
 ]
 
 export default function Ajustes() {

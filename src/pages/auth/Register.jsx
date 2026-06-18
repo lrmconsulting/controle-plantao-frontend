@@ -5,12 +5,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Box, Typography, TextField, Button, Link,
-  InputAdornment, IconButton, Alert, CircularProgress, Grid,
+  InputAdornment, IconButton, Alert, CircularProgress, Stack,
 } from '@mui/material'
-import VisibilityIcon from '@mui/icons-material/Visibility'
+import VisibilityIcon    from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
-import { authApi } from '@/api/auth'
-import { useAuthStore } from '@/store/authStore'
+import { authApi }       from '@/api/auth'
+import { useAuthStore }  from '@/store/authStore'
 
 const schema = z.object({
   name:             z.string().min(3, 'Nome deve ter ao menos 3 caracteres'),
@@ -20,14 +20,14 @@ const schema = z.object({
   password_confirm: z.string(),
 }).refine((d) => d.password === d.password_confirm, {
   message: 'As senhas não coincidem',
-  path: ['password_confirm'],
+  path:    ['password_confirm'],
 })
 
 export default function Register() {
   const navigate = useNavigate()
-  const setAuth = useAuthStore((s) => s.setAuth)
-  const [showPassword, setShowPassword] = useState(false)
-  const [apiError, setApiError] = useState('')
+  const setAuth  = useAuthStore((s) => s.setAuth)
+  const [showPwd, setShowPwd]     = useState(false)
+  const [apiError, setApiError]   = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
@@ -41,7 +41,6 @@ export default function Register() {
       navigate('/agenda', { replace: true })
     } catch (err) {
       const d = err.response?.data
-      // Coleta todos os erros de campo que o Django retornar
       if (d && typeof d === 'object') {
         const messages = Object.entries(d)
           .map(([field, errs]) => {
@@ -59,20 +58,25 @@ export default function Register() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+      <Typography sx={{
+        fontFamily: 'Inter, sans-serif', fontWeight: 700,
+        fontSize: '1.5rem', letterSpacing: '-0.03em', color: '#0A0A0A', mb: 0.5,
+      }}>
         Criar conta
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Comece a controlar seus plantões hoje
+      <Typography sx={{ fontSize: '0.85rem', color: '#888', mb: 4, lineHeight: 1.5 }}>
+        7 dias grátis · sem necessidade de cartão agora
       </Typography>
 
       {apiError && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: '10px', fontSize: '0.82rem' }}>
           {apiError}
         </Alert>
       )}
 
-      <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <Box component="form" onSubmit={handleSubmit(onSubmit)}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+
         <TextField
           label="Nome completo"
           autoFocus
@@ -98,49 +102,60 @@ export default function Register() {
           helperText={errors.crm?.message}
         />
 
-        <TextField
-          label="Senha"
-          type={showPassword ? 'text' : 'password'}
-          autoComplete="new-password"
-          {...register('password')}
-          error={!!errors.password}
-          helperText={errors.password?.message}
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                    {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-
-        <TextField
-          label="Confirmar senha"
-          type={showPassword ? 'text' : 'password'}
-          autoComplete="new-password"
-          {...register('password_confirm')}
-          error={!!errors.password_confirm}
-          helperText={errors.password_confirm?.message}
-        />
+        <Stack direction="row" spacing={1.5}>
+          <TextField
+            label="Senha"
+            type={showPwd ? 'text' : 'password'}
+            autoComplete="new-password"
+            fullWidth
+            {...register('password')}
+            error={!!errors.password}
+            helperText={errors.password?.message}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPwd(!showPwd)} edge="end" size="small">
+                      {showPwd ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <TextField
+            label="Confirmar"
+            type={showPwd ? 'text' : 'password'}
+            autoComplete="new-password"
+            fullWidth
+            {...register('password_confirm')}
+            error={!!errors.password_confirm}
+            helperText={errors.password_confirm?.message}
+          />
+        </Stack>
 
         <Button
           type="submit"
           variant="contained"
           size="large"
           disabled={isSubmitting}
-          sx={{ mt: 1, py: 1.5 }}
+          sx={{
+            mt: 1, py: 1.4,
+            bgcolor: '#0d9488', borderRadius: 99,
+            '&:hover': { bgcolor: '#0f766e', transform: 'scale(1.01)' },
+            fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.1em',
+          }}
         >
-          {isSubmitting ? <CircularProgress size={22} color="inherit" /> : 'Criar conta'}
+          {isSubmitting
+            ? <CircularProgress size={20} color="inherit" />
+            : 'Criar conta — 7 dias grátis'}
         </Button>
       </Box>
 
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: 'center' }}>
+      <Typography sx={{ mt: 3, textAlign: 'center', fontSize: '0.82rem', color: '#888' }}>
         Já tem conta?{' '}
-        <Link component={RouterLink} to="/login" fontWeight={600} color="primary.main" underline="none">
+        <Link component={RouterLink} to="/login" fontWeight={700} color="#0A0A0A" underline="none"
+          sx={{ '&:hover': { color: '#333' } }}>
           Entrar
         </Link>
       </Typography>
