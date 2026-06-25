@@ -592,7 +592,7 @@ export default function Financeiro() {
 
   /* ════ RENDER ════ */
   return (
-    <Box sx={{ pb: 5 }}>
+    <Box sx={{ pb: 5, minWidth: 0, overflow: 'hidden' }}>
 
       {/* ── Tabs ── */}
       <Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -695,7 +695,7 @@ export default function Financeiro() {
             </Box>
 
             {/* Cards resumo */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: { xs: 1, sm: 1.5 }, mb: 3 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(4, minmax(0,1fr))' }, gap: { xs: 1, sm: 1.5 }, mb: 3 }}>
               <SummaryCard icon={<CalendarMonthIcon />} label="Previsto" value={currency(totalPrevisto)} loading={summaryLoading} />
               <SummaryCard icon={<ReceiptLongIcon />} label="Faturado" value={currency(totalFaturado)} color="primary.main" accent="#0d9488" loading={invoicesLoading} />
               <SummaryCard icon={<AccountBalanceWalletIcon />} label="A receber" value={currency(aReceber)} color={aReceber > 0 ? 'warning.dark' : 'text.secondary'} accent={aReceber > 0 ? '#f59e0b' : undefined} loading={invoicesLoading} />
@@ -704,7 +704,7 @@ export default function Financeiro() {
           </Box>
 
           {/* Conteúdo principal: 3 colunas */}
-          <Box sx={{ px: { xs: 2, md: 3 }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, 1fr)' }, gap: { xs: 3, lg: 2.5 }, alignItems: 'start' }}>
+          <Box sx={{ px: { xs: 2, md: 3 }, display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(3, minmax(0, 1fr))' }, gap: { xs: 3, lg: 2.5 }, alignItems: 'start' }}>
             {consolidadoBlock}
             {faturasBlock}
             {previsaoBlock}

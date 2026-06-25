@@ -284,7 +284,7 @@ export default function ReportsTab() {
 
   /* ── Render ── */
   return (
-    <Box sx={{ pb: 4 }}>
+    <Box sx={{ pb: 4, minWidth: 0, overflow: 'hidden' }}>
 
       {/* ── Cabeçalho: seletor de ano + botões de exportação ── */}
       <Box sx={{
@@ -345,7 +345,7 @@ export default function ReportsTab() {
       <Box sx={{
         px: { xs: 2, md: 3 }, pt: 2.5, pb: 2,
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' },
+        gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', lg: 'repeat(5, minmax(0,1fr))' },
         gap: { xs: 1, sm: 1.5 },
       }}>
         <SummaryCard
@@ -393,12 +393,14 @@ export default function ReportsTab() {
       <Divider sx={{ mx: { xs: 2, md: 3 } }} />
 
       {/* ── Tabela mensal ── */}
-      <Box sx={{ px: { xs: 1, md: 3 }, pt: 2, overflowX: 'auto' }}>
+      <Box sx={{ px: { xs: 1, md: 3 }, pt: 2 }}>
         <Typography variant="subtitle2" fontWeight={700} sx={{ px: { xs: 1, md: 0 }, mb: 1.5, fontSize: '0.82rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Detalhamento mensal — {year}
         </Typography>
 
-        <Paper variant="outlined" sx={{ borderRadius: '8px', overflow: 'hidden' }}>
+        {/* Scroll horizontal apenas na tabela */}
+        <Box sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', mx: { xs: -1, md: 0 }, px: { xs: 1, md: 0 } }}>
+        <Paper variant="outlined" sx={{ borderRadius: '8px', overflow: 'hidden', minWidth: 460 }}>
           <Table size="small">
             <TableHead>
               {/* Linha 1 — cabeçalhos de grupo */}
@@ -476,6 +478,7 @@ export default function ReportsTab() {
             )}
           </Table>
         </Paper>
+        </Box>{/* /scroll wrapper */}
 
         {/* Legenda */}
         <Box sx={{ mt: 2, px: { xs: 1, md: 0 }, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
