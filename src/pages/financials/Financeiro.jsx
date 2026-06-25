@@ -89,16 +89,17 @@ function SummaryRow({ item, last }) {
   const isMonthly = item.billing_type === 'monthly'
   return (
     <Box sx={{
-      display: 'grid',
-      gridTemplateColumns: { xs: '1fr auto auto', sm: '1fr 52px 88px 108px' },
-      alignItems: 'center', gap: 1,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1,
       py: 1.25, px: 1.5,
       borderBottom: last ? 'none' : '1px solid', borderColor: 'divider',
       '&:hover': { bgcolor: '#f8fafc' },
     }}>
-      <Box sx={{ minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography variant="body2" fontWeight={600} noWrap>{item.unit_name}</Typography>
+      {/* Nome + instituição — cresce e trunca */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'nowrap', minWidth: 0 }}>
+          <Typography variant="body2" fontWeight={600} noWrap sx={{ minWidth: 0 }}>{item.unit_name}</Typography>
           {isMonthly && (
             <Chip label="Mensal" size="small" sx={{
               height: 16, fontSize: '0.55rem', fontWeight: 700,
@@ -107,16 +108,12 @@ function SummaryRow({ item, last }) {
             }} />
           )}
         </Box>
-        <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem' }}>{item.institution_name}</Typography>
+        <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', display: 'block' }}>
+          {isMonthly ? 'Cobrança mensal' : `${item.shift_count}× ${currency(item.shift_value)}`}
+        </Typography>
       </Box>
-      <Typography variant="body2" align="center" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-        {isMonthly ? '—' : `${item.shift_count}×`}
-      </Typography>
-      <Typography variant="caption" color="text.secondary" align="right"
-        sx={{ display: { xs: 'none', sm: 'block' }, fontVariantNumeric: 'tabular-nums' }}>
-        {isMonthly ? '—' : currency(item.shift_value)}
-      </Typography>
-      <Typography variant="body2" fontWeight={700} align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+      {/* Total — coluna fixa à direita */}
+      <Typography variant="body2" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
         {currency(item.total_value)}
       </Typography>
     </Box>
@@ -228,19 +225,19 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
         {(isDraft || isIssued || isPaid) && (
           <Box sx={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 0.875, pt: 1.25, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap',
+            gap: 0.75, pt: 1.25, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap',
           }}>
             {/* Grupo esquerdo — ações primárias */}
-            <Box sx={{ display: 'flex', gap: 0.875, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
               {isDraft && (
                 <>
                   <Button size="small" variant="contained" onClick={() => onSetNF(invoice)}
-                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                    sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5 }}>
                     Registrar NF
                   </Button>
                   <Button size="small" variant="outlined" startIcon={<EditIcon sx={{ fontSize: 13 }} />}
                     onClick={() => onEdit(invoice)}
-                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
+                    sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5 }}>
                     Editar
                   </Button>
                   <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
@@ -251,15 +248,15 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
                   <Button size="small" variant="outlined"
                     startIcon={<CancelIcon sx={{ fontSize: 13 }} />}
                     onClick={() => onCancelNF(invoice.id)}
-                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
+                    sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5, borderColor: 'warning.main', color: 'warning.dark', '&:hover': { borderColor: 'warning.dark', bgcolor: 'warning.50' } }}>
                     Cancelar NF
                   </Button>
                   <Button size="small" variant="contained" color="success"
                     startIcon={confirming === invoice.id ? null : <CheckCircleOutlineIcon sx={{ fontSize: 13 }} />}
                     onClick={() => onConfirmPayment(invoice.id)}
                     disabled={confirming === invoice.id}
-                    sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
-                    {confirming === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Confirmar pagamento'}
+                    sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5 }}>
+                    {confirming === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Confirmar pag.'}
                   </Button>
                   <DeferButton invoiceId={invoice.id} onDefer={onDefer} disabled={deferring === invoice.id} />
                 </>
@@ -269,8 +266,8 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
                   startIcon={cancellingPayment === invoice.id ? null : <UndoIcon sx={{ fontSize: 13 }} />}
                   onClick={() => onCancelPayment(invoice.id)}
                   disabled={cancellingPayment === invoice.id}
-                  sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
-                  {cancellingPayment === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Cancelar pagamento'}
+                  sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5, borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'warning.main', color: 'warning.dark' } }}>
+                  {cancellingPayment === invoice.id ? <CircularProgress size={13} color="inherit" /> : 'Cancelar pag.'}
                 </Button>
               )}
             </Box>
@@ -281,8 +278,8 @@ function InvoiceCard({ invoice, onSetNF, onCancelNF, onConfirmPayment, onCancelP
                 startIcon={cancelling === invoice.id ? null : <DeleteOutlineIcon sx={{ fontSize: 13 }} />}
                 onClick={() => onCancel(invoice.id)}
                 disabled={cancelling === invoice.id}
-                sx={{ borderRadius: '6px', fontSize: '0.72rem', py: 0.5 }}>
-                {cancelling === invoice.id ? <CircularProgress size={13} color="error" /> : 'Cancelar'}
+                sx={{ borderRadius: '6px', fontSize: { xs: '0.68rem', sm: '0.72rem' }, py: 0.5 }}>
+                {cancelling === invoice.id ? <CircularProgress size={13} color="error" /> : 'Excluir'}
               </Button>
             )}
           </Box>
@@ -497,9 +494,10 @@ export default function Financeiro() {
           {summaryByInstitution.map((inst) => (
             <Box key={inst.name} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px', overflow: 'hidden' }}>
               {/* Header instituição */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 1.25, bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
-                  <Typography variant="body2" fontWeight={700} noWrap>{inst.name}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.25, bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'nowrap' }}>
+                {/* Nome + badge — cresce e trunca */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }}>{inst.name}</Typography>
                   {inst.draftInvoice && (
                     <Chip label="Rascunho" size="small" color="warning"
                       sx={{ height: 16, fontSize: '0.58rem', borderRadius: '4px', flexShrink: 0 }} />
@@ -509,7 +507,8 @@ export default function Financeiro() {
                       sx={{ height: 16, fontSize: '0.58rem', borderRadius: '4px', flexShrink: 0 }} />
                   )}
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                {/* Valor + botão — fixos à direita */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
                   <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                     {currency(inst.total)}
                   </Typography>
@@ -522,16 +521,16 @@ export default function Financeiro() {
                 </Box>
               </Box>
 
-              {/* Tabela */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto auto', sm: '1fr 52px 88px 108px' }, gap: 1, px: 1.5, py: 0.625, bgcolor: '#fafafa', borderBottom: '1px solid', borderColor: 'divider' }}>
-                {['Unidade','Qtd','Valor unit.','Total'].map((h, i) => (
-                  <Typography key={i} variant="caption" color="text.disabled" fontWeight={700}
-                    align={i >= 2 ? 'right' : i===1 ? 'center' : 'left'}
-                    sx={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.05em',
-                      display: i===2 ? { xs: 'none', sm: 'block' } : 'block' }}>
-                    {h}
-                  </Typography>
-                ))}
+              {/* Cabeçalho da tabela */}
+              <Box sx={{ display: 'flex', gap: 1, px: 1.5, py: 0.625, bgcolor: '#fafafa', borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.disabled" fontWeight={700}
+                  sx={{ flex: 1, minWidth: 0, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Unidade
+                </Typography>
+                <Typography variant="caption" color="text.disabled" fontWeight={700} align="right"
+                  sx={{ flexShrink: 0, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total
+                </Typography>
               </Box>
               {inst.items.map((item, idx) => (
                 <SummaryRow key={idx} item={item} last={idx === inst.items.length - 1} />
@@ -596,9 +595,25 @@ export default function Financeiro() {
     <Box sx={{ pb: 5 }}>
 
       {/* ── Tabs ── */}
-      <Box sx={{ px: { xs: 2, md: 3 }, pt: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}
-          sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: '0.82rem', fontWeight: 600 } }}>
+      <Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            px: { xs: 1, md: 3 },
+            minHeight: 44,
+            '& .MuiTab-root': {
+              minHeight: 44,
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              minWidth: { xs: 'auto', sm: 90 },
+              px: { xs: 1.5, sm: 2 },
+            },
+          }}
+        >
           <Tab label="Mensal" value={0} />
           <Tab label="Recebíveis" value={1} />
           <Tab

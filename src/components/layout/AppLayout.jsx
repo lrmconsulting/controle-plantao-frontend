@@ -384,7 +384,7 @@ export default function AppLayout() {
           : <DesktopHeader />
         }
 
-        <Box component="main" sx={{ flex: 1, overflow: 'auto', pb: isMobile ? 8 : 0 }}>
+        <Box component="main" sx={{ flex: 1, overflowX: 'hidden', overflowY: 'auto', pb: isMobile ? 8 : 0 }}>
           <Outlet />
         </Box>
 
